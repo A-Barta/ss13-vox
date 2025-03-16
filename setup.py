@@ -8,12 +8,6 @@ from typing import Callable, FrozenSet, List, Optional, Set
 from urllib.parse import urlparse
 
 try:
-    import apt
-except ImportError:
-    print("Please run `apt install python3-apt`!")
-    sys.exit(1)
-
-try:
     from buildtools import http, os_utils
     from buildtools.bt_logging import IndentLogger
 except ImportError:
@@ -26,6 +20,7 @@ except ImportError:
 SCRIPT_DIR = Path(__file__).parent
 
 # Updated Apr 6 2022 for Ubuntu 20.04.4
+# (these are packages to be installed in ubuntu)
 REQUIRED_PACKAGES: Set[str] = {
     # Festival stuff
     "festival",
@@ -76,31 +71,6 @@ NITECH_VOICES: Set[str] = {
 }
 
 log = IndentLogger(logging.getLogger(__name__))
-
-
-def InstallPackages():
-    global REQUIRED_PACKAGES
-    with log.info("Checking system packages..."):
-        cache = apt.Cache()
-
-        num_changes = 0
-        with cache.actiongroup():
-            for pkg in REQUIRED_PACKAGES:
-                if not cache.has_key(pkg):
-                    log.critical("UNKNOWN APT PACKAGE {}!".format(pkg))
-                    sys.exit(1)
-                package = cache[pkg]
-                if not package.is_installed:
-                    package.mark_install()
-                    num_changes += 1
-        if num_changes == 0:
-            log.info("No changes required, skipping.")
-            return
-
-        cache.commit(
-            apt.progress.text.AcquireProgress(),
-            apt.progress.base.InstallProgress(),
-        )
 
 
 def InstallHTS():
@@ -261,7 +231,6 @@ def main():
         do_check("Checking Ubuntu release (LSB)", chk_lsb)
         do_check("Running in virtualenv (poetry shell)", chk_venv)
 
-    InstallPackages()
     InstallHTS()
     FixHTS()
 

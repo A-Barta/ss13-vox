@@ -12,8 +12,9 @@ voices:
   mas:     us-rms
   # Non-AI announcements (like vox_login, etc)
   default: us-clb # Current /vg/ default
-  #default: scot-awb # Scottish voice, absolutely fucking hilarious
-  #Plug in your own wordlists here.
+  # default: scot-awb # Scottish voice, absolutely fucking hilarious
+  # Plug in your own wordlists here.
+  sfx:     sfx
 phrasefiles:
   # /vg/-specific announcements
   - wordlists/vg/announcements.txt

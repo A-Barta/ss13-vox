@@ -22,18 +22,6 @@ class EVoiceSex(Enum):
     SFX = "sfx"
 
 
-class VoiceRegistry(object):
-    ALL = {}
-
-    @staticmethod
-    def Register(cls) -> None:
-        VoiceRegistry.ALL[cls.ID] = cls
-
-    @staticmethod
-    def Get(vid: str) -> "Voice":
-        return VoiceRegistry.ALL[vid]()
-
-
 class Voice(object):
     # Unique ID of the voice, used for config.
     ID: str = ""
@@ -132,6 +120,18 @@ class Voice(object):
             + str(self.FESTIVAL_VOICE_ID)
             + self.PHONESET
         )
+
+
+class VoiceRegistry(object):
+    ALL = {}
+
+    @staticmethod
+    def Register(voice: Voice) -> None:
+        VoiceRegistry.ALL[voice.ID] = voice
+
+    @staticmethod
+    def Get(vid: str) -> "Voice":
+        return VoiceRegistry.ALL[vid]()
 
 
 class USRMSMale(Voice):
@@ -273,7 +273,7 @@ class SFXVoice(Voice):
 
     ID = "sfx"
     SEX = EVoiceSex.SFX
-    FESTIVAL_VOICE_ID = None
+    FESTIVAL_VOICE_ID = ""
 
     def __init__(self):
         super().__init__()
@@ -285,4 +285,4 @@ class SFXVoice(Voice):
         return super().genSoxArgs(args)
 
 
-# VoiceRegistry.Register(NullVoice)
+VoiceRegistry.Register(SFXVoice)

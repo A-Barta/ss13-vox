@@ -1,10 +1,11 @@
 from typing import List, Dict, Tuple
-from buildtools import log
 import re
 import sys
+from logging import getLogger
 
 REGEX_SEARCH_STRINGS = re.compile(r'(\'|")(.*?)(?:\1)')
 
+logger = getLogger("AB Main")
 
 class Pronunciation(object):
     """
@@ -107,7 +108,7 @@ class Pronunciation(object):
             phonemes = []
             for phoneme in match.group(2).split(" "):
                 if phoneme not in self.VALID_PHONEMES:
-                    log.error(
+                    logger.error(
                         'INVALID PHONEME "{0}" IN LEX ENTRY "{1}"'.format(
                             phoneme, self.name
                         )
@@ -119,7 +120,7 @@ class Pronunciation(object):
                         phoneme = phoneset[phoneme]
                 phonemes += [phoneme]
             self.syllables += [(phonemes, stressLevel)]
-        log.info(
+        logger.debug(
             "Parsed {0} as {1}.".format(pronunciation, repr(self.syllables))
         )
 

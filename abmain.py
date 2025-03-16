@@ -1,3 +1,4 @@
+from enum import Flag
 import sys
 import os
 
@@ -8,10 +9,9 @@ import multiprocessing
 from yaml import safe_load
 from yaml import YAMLError
 
-from ss13vox.voice import EVoiceSex
-
-# from ss13vox.voice import SFXVoice
-from ss13vox.voice import VoiceRegistry
+from ss13vox.voice import EVoiceSex, SFXVoice, USSLTFemale, Voice, VoiceRegistry
+from ss13vox.pronunciation import ParseLexiconText
+from ss13vox.phrase import EPhraseFlags, FileData, ParsePhraseListFrom, Phrase
 
 FORMAT = "%(levelname)s --- %(message)s"
 # LOGLEVEL = logging.INFO
@@ -58,18 +58,19 @@ def main(args):
     config = loadYaml(args["config"])
 
     # configure
-    # station = args["station"]
-    # preexSound = config["paths"][station]["sound"]["old-vox"]
-    # nuvoxSound = config["paths"][station]["sound"]["new-vox"]
+    station = args["station"]
+    preexSound = config["paths"][station]["sound"]["old-vox"]
+    nuvoxSound = config["paths"][station]["sound"]["new-vox"]
     # vox_sounds_path = config["paths"][station]["vox_sounds"]["path"]
     # templatefile = config["paths"][station]["vox_sounds"]["template"]
     # vox_data_path = config["paths"][station]["vox_data"]
 
     voice_assignments = {}
     all_voices = []
-    # default_voice: Voice = VoiceRegistry.Get(USSLTFemale.ID)
+    default_voice: Voice = VoiceRegistry.Get(USSLTFemale.ID)
+    default_voice.assigned_sex
     # This should default to config['voices']['default']
-    # sfx_voice: SFXVoice = SFXVoice()
+    sfx_voice: SFXVoice = SFXVoice()
     configured_voices: dict[str, dict] = {}
 
     for sexID, voiceid in config["voices"].items():
@@ -83,99 +84,90 @@ def main(args):
         elif sexID == "default":
             pass
             # default_voice = voice
-        voice_assignments[voice.assigned_sex] = []
+        voice_assignments[voice.SEX] = []
         all_voices.append(voice)
         configured_voices[sexID] = voice.serialize()
 
-    logger.debug(f"List of all voices found: {all_voices}")
-    logger.debug(f"List of all voices configured: {configured_voices}")
+    logger.info(f"List of all voices found: {[voice.ID for voice in all_voices]}")
+    logger.info(f"List of all voices configured: {configured_voices}")
 
-    # voice_assignments[sfx_voice.assigned_sex] = []
-    # all_voices += [sfx_voice]
-    # configured_voices[sfx_voice.assigned_sex] = sfx_voice.serialize()
+    logger.info(f"Checking that {DATA_DIR} exists")
+    if not os.path.exists(DATA_DIR):
+        logger.info(f"{DATA_DIR} not found, creating it")
+        os.makedirs(DATA_DIR)
+        logger.info("Success")
+    else:
+        logger.info(f"{DATA_DIR} exists, moving on")
 
-    # os_utils.ensureDirExists(DATA_DIR)
-    # with log.info("Parsing lexicon..."):
-    #     lexicon = ParseLexiconText("lexicon.txt")
+    lexicon = ParseLexiconText("lexicon.txt")
 
-    # phrases = []
-    # phrasesByID = {}
-    # broked = False
-    # max_wordlen = config.get("max-wordlen", 30)
-    # for filename in config.get(
-    #     "phrasefiles", ["announcements.txt", "voxwords.txt"]
-    # ):
-    #     for p in ParsePhraseListFrom(filename):
-    #         p.wordlen = min(max_wordlen, p.wordlen)
-    #         if p.id in phrasesByID:
-    #             duplicated = phrasesByID[p.id]
-    #             log.critical(
-    #                 f"Duplicate phrase with ID {p.id} "
-    #                 f"in file {p.deffile} on line {p.defline}! "
-    #                 f"First instance in file {duplicated.deffile} "
-    #                 f"on line {duplicated.defline}."
-    #             )
-    #             broked = True
-    #             continue
-    #         phrases += [p]
-    #         phrasesByID[p.id] = p
-    #     if broked:
-    #         sys.exit(1)
+    phrases: list[Phrase] = []
+    phrasesByID = {}
+    broked = False
+    max_wordlen = config["max-wordlen"]
+    for filename in config["phrasefiles"]:
+        for p in ParsePhraseListFrom(filename):
+            p.wordlen = min(max_wordlen, p.wordlen)
+            if p.id in phrasesByID:
+                duplicated = phrasesByID[p.id]
+                logger.info(
+                    f"Duplicate phrase with ID {p.id} "
+                    f"in file {p.deffile} on line {p.defline}! "
+                    f"First instance in file {duplicated.deffile} "
+                    f"on line {duplicated.defline}."
+                )
+                broked = True
+                continue
+            phrases += [p]
+            phrasesByID[p.id] = p
+        if broked:
+            sys.exit(1)
 
     # soundsToKeep = set()
     # for sound in OTHERSOUNDS:
     #     soundsToKeep.add(os.path.join(DIST_DIR, sound + ".ogg"))
 
-    # phrases.sort(key=lambda x: x.id)
+    phrases.sort(key=lambda x: x.id)
 
-    # overrides = config.get("overrides", {})
-    # for phrase in phrases:
-    #     if phrase.id in overrides:
-    #         phrase.fromOverrides(overrides.get(phrase.id))
-    #     phrase_voices = list(voices)
-    #     # If it has a path, it's being manually specified.
-    #     if "/" in phrase.id:
-    #         phrase.filename = phrase.id + ".ogg"
-    #         phrase_voices = [default_voice]
-    #         soundsToKeep.add(
-    #             os.path.abspath(os.path.join(DIST_DIR, phrase.filename))
-    #         )
-    #     else:
-    #         phrase.filename = "" + nuvoxSound
-    #         if phrase.hasFlag(EPhraseFlags.OLD_VOX):
-    #             phrase_voices = [default_voice]
-    #             phrase.filename = preexSound.format(ID=phrase.id)
-    #             for voice in ["fem", "mas"]:
-    #                 phrase.files[voice] = FileData()
-    #                 phrase.files[voice].filename = phrase.filename
-    #                 phrase.files[voice].checksum = ""
-    #                 phrase.files[voice].duration = (
-    #                     phrase.override_duration or -1
-    #                 )
-    #                 phrase.files[voice].size = phrase.override_size or -1
-    #                 # voice_assignments[voice].append(phrase)
-    #             soundsToKeep.add(
-    #                 os.path.abspath(os.path.join(DIST_DIR, phrase.filename))
-    #             )
-    #             continue
+    overrides = config["overrides"]
+    for phrase in phrases:
+        if phrase.id in overrides:
+            logger.debug(f"Phrase {phrase} is in ovverrides")
+            phrase.fromOverrides(overrides.get(phrase.id))
+        phrase_voices = [default_voice]
+        if "/" in phrase.id:
+            # if the ID is a path, treat it as filename
+            phrase.filename = f"{phrase.id}.ogg"
+            phrase_voices = [default_voice]
+        elif phrase.hasFlag(flag=EPhraseFlags.OLD_VOX):
+            phrase.filename = preexSound
+            for voice in ("fem", "mas"):
+                phrase.files[voice] = FileData()
+                phrase.files[voice].filename = phrase.filename
+                phrase.files[voice].checksum = ""
+                if phrase.override_duration:
+                    phrase.files[voice].duration = phrase.override_duration
+                else:
+                    phrase.files[voice].duration = -1
+                if phrase.override_size:
+                    phrase.files[voice].size = phrase.override_size
+                else:
+                    phrase.files[voice].size = -1
+            # add to soundsToKeep
+            continue
+        elif phrase.hasFlag(EPhraseFlags.SFX):
+            phrase.filename = nuvoxSound
+            phrase_voices = [sfx_voice]
+        for voice in phrase_voices:
+            voice_assignments[voice.SEX].append(phrase)
 
-    #     if phrase.hasFlag(EPhraseFlags.SFX):
-    #         phrase_voices = [sfx_voice]
-
-    #     if not phrase.hasFlag(EPhraseFlags.OLD_VOX):
-    #         log.info(
-    #             "%s - %r", phrase.id, [x.assigned_sex for x in phrase_voices]
-    #         )
-    #         for v in phrase_voices:
-    #             voice_assignments[v.assigned_sex].append(phrase)
-    #             # phrase.files[v.assigned_sex] = fd
-    # sys.exit(1)
-    # for voice in all_voices:
-    #     print(voice.ID, voice.assigned_sex)
+    for voice in all_voices:
+        logger.info(f"ID = {voice.ID}, ass_sex = {voice.assigned_sex}")
     #     DumpLexiconScript(
     #         voice.FESTIVAL_VOICE_ID, lexicon.values(), "tmp/VOXdict.lisp"
     #     )
-    #     for phrase in voice_assignments[voice.assigned_sex]:
+        for phrase in voice_assignments[voice.SEX]:
+            logger.warning(f"{phrase}")
     #         GenerateForWord(phrase, voice, soundsToKeep, args)
     #         sexes = set()
     #         for vk, fd in phrase.files.items():

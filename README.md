@@ -1,3 +1,33 @@
+# SS13 VOX - My attempt at restoring this archived repo
+
+## Installing and using in a venv
+
+### Pre-requisites
+
+You will need:
+
+1- sox
+2- oggenc
+3- festival
+
+Follow your distribution installation instructions
+
+### Install in a python venv
+
+1- Create a virtual environment `python -m venv vox-venv`
+2- Activate the venv `source vox-venv/bin/activate`
+3- Install ss13-vox `pip install .`
+
+That's it. After installing for the first time you may not have all the commands in your shell. Deactivate the venv and activate again, or open a new shell and activate the venv.
+
+To deactivate the venv just run `deactivate`
+
+## Commands
+
+
+
+
+
 # SS13 VOX
 
 TTS-based announcer inspired by Half Life's announcement system.

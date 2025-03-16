@@ -1,10 +1,11 @@
 from typing import List, Optional, Dict
 from enum import IntFlag
 
-from buildtools import log
 import re
 import os
 import string
+
+from logging import getLogger
 
 __ALL__ = ["EPhraseFlags", "Phrase", "ParsePhraseListFrom"]
 
@@ -16,6 +17,7 @@ REPL_FILECHAR = "_"
 
 S_TO_DS = 10
 
+logger = getLogger("AB Main")
 
 def _fixChars(filename) -> str:
     return "".join(
@@ -106,6 +108,9 @@ class Phrase(object):
         #: Line in which this phrase was defined.
         self.defline: int = 0
 
+    def __repr__(self) -> str:
+        return self.phrase
+
     def getFinalFilename(self, sex: str, silent: bool = False) -> str:
         # Final-ish filename
         ffn = self.filename.format(ID=self.id, SEX=sex)
@@ -120,7 +125,7 @@ class Phrase(object):
             # CON -> C_ON
             fbn = f"{bn[0]}_{bn[1:]}"
             if not silent:
-                log.warning(
+                logger.warning(
                     "%s is a reserved filename in Windows, changed to %s!",
                     bn,
                     fbn,
@@ -130,7 +135,7 @@ class Phrase(object):
         fbn = _fixChars(bn)
         if fbn != bn:
             if not silent:
-                log.warning("%s had invalid chars, changed to %s!", bn, fbn)
+                logger.warning("%s had invalid chars, changed to %s!", bn, fbn)
             bn = fbn
 
         return os.path.join(dn, bn + ext)
@@ -216,6 +221,7 @@ def ParsePhraseListFrom(filename: str) -> List[Phrase]:
                 p.category = in_cat
                 comments_before = []
                 phrases += [p]
+                logger.debug(f"Adding phrase {p}")
             elif line != "" and " " not in line and len(line) > 0:
                 p = Phrase()
                 p.deffile = filename
@@ -226,4 +232,5 @@ def ParsePhraseListFrom(filename: str) -> List[Phrase]:
                 p.category = in_cat
                 comments_before = []
                 phrases += [p]
+                logger.debug(f"Adding phrase {p}")
     return phrases
