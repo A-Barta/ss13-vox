@@ -1,4 +1,3 @@
-from enum import Flag
 import sys
 import os
 
@@ -10,7 +9,7 @@ from yaml import safe_load
 from yaml import YAMLError
 
 from ss13vox.voice import EVoiceSex, SFXVoice, USSLTFemale, Voice, VoiceRegistry
-from ss13vox.pronunciation import ParseLexiconText
+from ss13vox.pronunciation import DumpLexiconScript, ParseLexiconText
 from ss13vox.phrase import EPhraseFlags, FileData, ParsePhraseListFrom, Phrase
 
 FORMAT = "%(levelname)s --- %(message)s"
@@ -161,11 +160,17 @@ def main(args):
         for voice in phrase_voices:
             voice_assignments[voice.SEX].append(phrase)
 
+    logger.info(f"Checking that {TEMP_DIR} exists")
+    if not os.path.exists(TEMP_DIR):
+        logger.info(f"{TEMP_DIR} not found, creating it")
+        os.makedirs(TEMP_DIR)
+
+    lexicon_path = os.path.join(TEMP_DIR, "VOXdict.lisp")
+    DumpLexiconScript("", list(lexicon.values()), lexicon_path)
+    logger.info(f"Wrote lexicon script to {lexicon_path}")
+
     for voice in all_voices:
-        logger.info(f"ID = {voice.ID}, ass_sex = {voice.assigned_sex}")
-    #     DumpLexiconScript(
-    #         voice.FESTIVAL_VOICE_ID, lexicon.values(), "tmp/VOXdict.lisp"
-    #     )
+        logger.info(f"ID = {voice.ID}, assigned_sex = {voice.assigned_sex}")
         for phrase in voice_assignments[voice.SEX]:
             logger.warning(f"{phrase}")
     #         GenerateForWord(phrase, voice, soundsToKeep, args)
