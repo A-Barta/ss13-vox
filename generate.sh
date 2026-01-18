@@ -1,3 +1,2 @@
 #!/usr/bin/sh
-python create.py
-python BUILD.py --rebuild
+python abmain.py
