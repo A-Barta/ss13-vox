@@ -19,6 +19,7 @@ S_TO_DS = 10
 
 logger = getLogger("AB Main")
 
+
 def _fixChars(filename) -> str:
     return "".join(
         [(c if c in ACCEPTABLE_FILECHARS else REPL_FILECHAR) for c in filename]

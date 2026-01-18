@@ -7,6 +7,7 @@ REGEX_SEARCH_STRINGS = re.compile(r'(\'|")(.*?)(?:\1)')
 
 logger = getLogger("AB Main")
 
+
 class Pronunciation(object):
     """
     Festival can fuck up pronunciation of stuff,

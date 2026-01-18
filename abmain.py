@@ -11,7 +11,13 @@ from yaml import safe_load
 from yaml import YAMLError
 
 from ss13vox.consts import PRE_SOX_ARGS, RECOMPRESS_ARGS
-from ss13vox.voice import EVoiceSex, SFXVoice, USSLTFemale, Voice, VoiceRegistry
+from ss13vox.voice import (
+    EVoiceSex,
+    SFXVoice,
+    USSLTFemale,
+    Voice,
+    VoiceRegistry,
+)
 from ss13vox.pronunciation import DumpLexiconScript, ParseLexiconText
 from ss13vox.phrase import EPhraseFlags, FileData, ParsePhraseListFrom, Phrase
 
@@ -68,7 +74,9 @@ def run_cmd(
         text=capture_output,
     )
     if result.returncode != 0:
-        logger.error(f"Command failed with code {result.returncode}: {command}")
+        logger.error(
+            f"Command failed with code {result.returncode}: {command}"
+        )
         if capture_output and result.stderr:
             logger.error(f"stderr: {result.stderr}")
         sys.exit(1)
@@ -177,30 +185,43 @@ def generate_for_word(
     if not phrase.hasFlag(EPhraseFlags.NO_PROCESS) or not phrase.hasFlag(
         EPhraseFlags.NO_TRIM
     ):
-        cmds.append((
-            ["sox", f"{TEMP_DIR}/VOX-word.wav", f"{TEMP_DIR}/VOX-soxpre-word.wav"]
-            + PRE_SOX_ARGS.split(" "),
-            f"{TEMP_DIR}/VOX-soxpre-word.wav",
-        ))
+        cmds.append(
+            (
+                [
+                    "sox",
+                    f"{TEMP_DIR}/VOX-word.wav",
+                    f"{TEMP_DIR}/VOX-soxpre-word.wav",
+                ]
+                + PRE_SOX_ARGS.split(" "),
+                f"{TEMP_DIR}/VOX-soxpre-word.wav",
+            )
+        )
 
     if not phrase.hasFlag(EPhraseFlags.NO_PROCESS):
-        cmds.append((
-            ["sox", cmds[-1][1], f"{TEMP_DIR}/VOX-sox-word.wav"] + sox_args,
-            f"{TEMP_DIR}/VOX-sox-word.wav",
-        ))
+        cmds.append(
+            (
+                ["sox", cmds[-1][1], f"{TEMP_DIR}/VOX-sox-word.wav"]
+                + sox_args,
+                f"{TEMP_DIR}/VOX-sox-word.wav",
+            )
+        )
 
-    cmds.append((
-        ["oggenc", cmds[-1][1], "-o", f"{TEMP_DIR}/VOX-encoded.ogg"],
-        f"{TEMP_DIR}/VOX-encoded.ogg",
-    ))
+    cmds.append(
+        (
+            ["oggenc", cmds[-1][1], "-o", f"{TEMP_DIR}/VOX-encoded.ogg"],
+            f"{TEMP_DIR}/VOX-encoded.ogg",
+        )
+    )
 
-    cmds.append((
-        ["ffmpeg", "-i", f"{TEMP_DIR}/VOX-encoded.ogg"]
-        + RECOMPRESS_ARGS
-        + ["-threads", str(args["threads"])]
-        + [oggfile],
-        oggfile,
-    ))
+    cmds.append(
+        (
+            ["ffmpeg", "-i", f"{TEMP_DIR}/VOX-encoded.ogg"]
+            + RECOMPRESS_ARGS
+            + ["-threads", str(args["threads"])]
+            + [oggfile],
+            oggfile,
+        )
+    )
 
     # Execute pipeline
     for command, _ in cmds:
@@ -209,8 +230,10 @@ def generate_for_word(
     # Get audio metadata with ffprobe
     probe_cmd = [
         "ffprobe",
-        "-v", "quiet",
-        "-print_format", "json",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
         "-show_format",
         "-show_streams",
         oggfile,
@@ -283,7 +306,9 @@ def main(args):
         all_voices.append(voice)
         configured_voices[sexID] = voice.serialize()
 
-    logger.info(f"List of all voices found: {[voice.ID for voice in all_voices]}")
+    logger.info(
+        f"List of all voices found: {[voice.ID for voice in all_voices]}"
+    )
     logger.info(f"List of all voices configured: {configured_voices}")
 
     logger.info(f"Checking that {DATA_DIR} exists")
@@ -370,7 +395,9 @@ def main(args):
     for voice in all_voices:
         logger.info(f"ID = {voice.ID}, assigned_sex = {voice.assigned_sex}")
         for phrase in voice_assignments[voice.SEX]:
-            generate_for_word(phrase, voice, sounds_to_keep, lexicon_path, args)
+            generate_for_word(
+                phrase, voice, sounds_to_keep, lexicon_path, args
+            )
             for fd in phrase.files.values():
                 sounds_to_keep.add(
                     os.path.abspath(os.path.join(DIST_DIR, fd.filename))
