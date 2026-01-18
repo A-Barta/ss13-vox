@@ -5,6 +5,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools-git-versioning]
 enabled = true
 
+[tool.setuptools.packages.find]
+include = ["ss13vox*"]
+
 [project]
 dynamic = ["version"]
 name = "ss13-vox"
@@ -17,9 +20,9 @@ authors = [
 ]
 description = "Text-to-Speech announcement system for Space Station 13"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.9"
 classifiers = [
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -39,4 +42,5 @@ test = [
 repository = "https://github.com/A-Barta/ss13-vox"
 
 [project.scripts]
-ss13-vox = "abmain:main"
+ss13-vox = "ss13vox.cli:main"
+
