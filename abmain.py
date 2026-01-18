@@ -7,6 +7,8 @@ import argparse
 import pathlib
 import subprocess
 import multiprocessing
+import time
+import collections
 
 from yaml import safe_load
 from yaml import YAMLError
@@ -433,35 +435,43 @@ def main(args):
     logger.info(f"Wrote DM code to {vox_sounds_path}")
     sounds_to_keep.add(os.path.abspath(str(vox_sounds_path)))
 
-    # os_utils.ensureDirExists(DATA_DIR)
-    # with open(os.path.join(DATA_DIR, "vox_data.json"), "w") as f:
-    #     data = {
-    #         "version": 2,
-    #         "compiled": time.time(),
-    #         "voices": configured_voices,
-    #         "words": collections.OrderedDict(
-    #             {w.id: w.serialize() for w in phrases if "/" not in w.id}
-    #         ),
-    #     }
-    #     json.dump(data, f, indent=2)
-    # soundsToKeep.add(
-    #     os.path.abspath(os.path.join(DATA_DIR, "vox_data.json"))
-    # )
+    # Generate vox_data.json
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+    vox_data_path = os.path.join(DATA_DIR, "vox_data.json")
+    with open(vox_data_path, "w") as f:
+        data = {
+            "version": 2,
+            "compiled": time.time(),
+            "voices": configured_voices,
+            "words": collections.OrderedDict(
+                {w.id: w.serialize() for w in phrases if "/" not in w.id}
+            ),
+        }
+        json.dump(data, f, indent=2)
+    logger.info(f"Wrote vox_data.json to {vox_data_path}")
+    sounds_to_keep.add(os.path.abspath(vox_data_path))
 
-    # with open("tmp/written.txt", "w") as f:
-    #     for filename in sorted(soundsToKeep):
-    #         f.write(f"{filename}\n")
+    # Write manifest of generated files
+    manifest_path = os.path.join(TEMP_DIR, "written.txt")
+    with open(manifest_path, "w") as f:
+        for filename in sorted(sounds_to_keep):
+            f.write(f"{filename}\n")
+    logger.info(f"Wrote manifest to {manifest_path}")
 
-    # for root, _, files in os.walk(DIST_DIR, topdown=False):
-    #     for name in files:
-    #         filename = os.path.abspath(os.path.join(root, name))
-    #         if filename not in soundsToKeep:
-    #             log.warning(
-    #                 "Removing {0} (no longer defined)".format(filename)
-    #             )
-    #             os.remove(filename)
+    # Clean up orphan files
+    orphan_count = 0
+    for root, _, files in os.walk(DIST_DIR, topdown=False):
+        for name in files:
+            filename = os.path.abspath(os.path.join(root, name))
+            if filename not in sounds_to_keep:
+                logger.warning(f"Removing {filename} (no longer defined)")
+                os.remove(filename)
+                orphan_count += 1
+    if orphan_count > 0:
+        logger.info(f"Removed {orphan_count} orphan file(s)")
 
-    ####
+    logger.info("Generation complete")
 
 
 if __name__ == "__main__":
