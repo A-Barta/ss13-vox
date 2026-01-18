@@ -18,7 +18,7 @@ dependencies = [
 authors = [
   {name = "Antonio Bartalesi", email = "antonio.bartalesi@gmail.com"},
 ]
-description = "Text-to-Speech announcement system for Space Station 13"
+description = "Fork of N3X15/ss13-vox - Text-to-Speech announcement system for Space Station 13"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
