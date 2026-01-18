@@ -1,13 +1,16 @@
 import sys
 import os
-
+import json
+import hashlib
 import logging
 import argparse
+import subprocess
 import multiprocessing
 
 from yaml import safe_load
 from yaml import YAMLError
 
+from ss13vox.consts import PRE_SOX_ARGS, RECOMPRESS_ARGS
 from ss13vox.voice import EVoiceSex, SFXVoice, USSLTFemale, Voice, VoiceRegistry
 from ss13vox.pronunciation import DumpLexiconScript, ParseLexiconText
 from ss13vox.phrase import EPhraseFlags, FileData, ParsePhraseListFrom, Phrase
@@ -41,6 +44,199 @@ def loadYaml(filename):
         logger.error(f"File not found: {filename}")
         sys.exit(10)
     return config
+
+
+def md5sum(filename: str) -> str:
+    md5 = hashlib.md5()
+    with open(filename, "rb") as f:
+        for chunk in iter(lambda: f.read(128 * md5.block_size), b""):
+            md5.update(chunk)
+    return md5.hexdigest()
+
+
+def run_cmd(
+    command: list[str],
+    echo: bool = False,
+    capture_output: bool = False,
+) -> subprocess.CompletedProcess:
+    """Run a command, optionally echoing it and capturing output."""
+    if echo:
+        logger.debug(f"Running: {' '.join(command)}")
+    result = subprocess.run(
+        command,
+        capture_output=capture_output,
+        text=capture_output,
+    )
+    if result.returncode != 0:
+        logger.error(f"Command failed with code {result.returncode}: {command}")
+        if capture_output and result.stderr:
+            logger.error(f"stderr: {result.stderr}")
+        sys.exit(1)
+    return result
+
+
+def generate_for_word(
+    phrase: Phrase,
+    voice: Voice,
+    written_files: set,
+    lexicon_path: str,
+    args: dict,
+) -> None:
+    """Generate audio file for a single phrase."""
+    if phrase.hasFlag(EPhraseFlags.OLD_VOX):
+        logger.info(f"Skipping {phrase.id}.ogg (Marked as OLD_VOX)")
+        return
+
+    filename = phrase.getFinalFilename(voice.assigned_sex)
+    sox_args = voice.genSoxArgs(args)
+
+    # Build cache key from all inputs that affect output
+    cache_key = json.dumps(phrase.serialize())
+    cache_key += "".join(sox_args) + PRE_SOX_ARGS + "".join(RECOMPRESS_ARGS)
+    cache_key += voice.fast_serialize()
+    cache_key += filename
+
+    oggfile = os.path.abspath(os.path.join(DIST_DIR, filename))
+    cachebase = os.path.abspath(
+        os.path.join("cache", phrase.id.replace(os.sep, "_").replace(".", ""))
+    )
+    checkfile = cachebase + voice.ID + ".dat"
+    cachefile = cachebase + voice.ID + ".json"
+
+    fdata = FileData()
+    fdata.voice = voice.ID
+    fdata.filename = os.path.relpath(oggfile, DIST_DIR)
+
+    def commit_written():
+        nonlocal phrase, voice, oggfile, written_files, fdata
+        if voice.ID == SFXVoice.ID:
+            # Both masculine and feminine voicepacks link to SFX
+            for sex in ["fem", "mas"]:
+                phrase.files[sex] = fdata
+        else:
+            phrase.files[voice.assigned_sex] = fdata
+        written_files.add(os.path.abspath(oggfile))
+
+    # Ensure output directories exist
+    for path in [os.path.dirname(oggfile), os.path.dirname(cachefile)]:
+        if not os.path.isdir(path):
+            os.makedirs(path)
+
+    # Check cache - skip if already generated with same inputs
+    if os.path.isfile(oggfile) and os.path.isfile(cachefile):
+        old_cache_key = ""
+        if os.path.isfile(checkfile):
+            with open(checkfile, "r") as f:
+                old_cache_key = f.read()
+        if old_cache_key == cache_key:
+            with open(cachefile, "r") as f:
+                fdata.deserialize(json.load(f))
+            logger.info(f"Skipping {filename} for {voice.ID} (exists)")
+            commit_written()
+            return
+
+    logger.info(f"Generating {filename} for {voice.ID} ({phrase.phrase!r})")
+
+    # Build text2wave command
+    if phrase.hasFlag(EPhraseFlags.SFX):
+        text2wave = ["ffmpeg", "-i", phrase.phrase, f"{TEMP_DIR}/VOX-word.wav"]
+    else:
+        phrasefile = os.path.join(TEMP_DIR, "VOX-word.txt")
+        text2wave = ["text2wave"]
+        # Set voice
+        text2wave += ["-eval", f"(voice_{voice.FESTIVAL_VOICE_ID})"]
+        # Load lexicon
+        if os.path.isfile(lexicon_path):
+            text2wave += ["-eval", lexicon_path]
+        if phrase.hasFlag(EPhraseFlags.SING):
+            text2wave += ["-mode", "singing", phrase.phrase]
+        else:
+            with open(phrasefile, "w") as f:
+                f.write(phrase.phrase + "\n")
+            text2wave += [phrasefile]
+        text2wave += ["-o", f"{TEMP_DIR}/VOX-word.wav"]
+
+    # Write cache key
+    with open(checkfile, "w") as f:
+        f.write(cache_key)
+
+    # Clean up temp files
+    for fn in (
+        f"{TEMP_DIR}/VOX-word.wav",
+        f"{TEMP_DIR}/VOX-soxpre-word.wav",
+        f"{TEMP_DIR}/VOX-sox-word.wav",
+        f"{TEMP_DIR}/VOX-encoded.ogg",
+    ):
+        if os.path.isfile(fn):
+            os.remove(fn)
+
+    # Build command pipeline
+    cmds = []
+    cmds.append((text2wave, f"{TEMP_DIR}/VOX-word.wav"))
+
+    if not phrase.hasFlag(EPhraseFlags.NO_PROCESS) or not phrase.hasFlag(
+        EPhraseFlags.NO_TRIM
+    ):
+        cmds.append((
+            ["sox", f"{TEMP_DIR}/VOX-word.wav", f"{TEMP_DIR}/VOX-soxpre-word.wav"]
+            + PRE_SOX_ARGS.split(" "),
+            f"{TEMP_DIR}/VOX-soxpre-word.wav",
+        ))
+
+    if not phrase.hasFlag(EPhraseFlags.NO_PROCESS):
+        cmds.append((
+            ["sox", cmds[-1][1], f"{TEMP_DIR}/VOX-sox-word.wav"] + sox_args,
+            f"{TEMP_DIR}/VOX-sox-word.wav",
+        ))
+
+    cmds.append((
+        ["oggenc", cmds[-1][1], "-o", f"{TEMP_DIR}/VOX-encoded.ogg"],
+        f"{TEMP_DIR}/VOX-encoded.ogg",
+    ))
+
+    cmds.append((
+        ["ffmpeg", "-i", f"{TEMP_DIR}/VOX-encoded.ogg"]
+        + RECOMPRESS_ARGS
+        + ["-threads", str(args["threads"])]
+        + [oggfile],
+        oggfile,
+    ))
+
+    # Execute pipeline
+    for command, _ in cmds:
+        run_cmd(command, echo=args["echo"])
+
+    # Get audio metadata with ffprobe
+    probe_cmd = [
+        "ffprobe",
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_format",
+        "-show_streams",
+        oggfile,
+    ]
+    result = run_cmd(probe_cmd, echo=args["echo"], capture_output=True)
+    fdata.fromJSON(json.loads(result.stdout))
+    fdata.checksum = md5sum(oggfile)
+
+    # Adjust duration for non-SFX (removes silence padding)
+    if not phrase.hasFlag(EPhraseFlags.SFX) and fdata.duration > 10.0:
+        fdata.duration -= 10.0
+
+    # Verify output files exist
+    for command, expected_file in cmds:
+        if not os.path.isfile(expected_file):
+            logger.error(
+                f"File '{expected_file}' doesn't exist, "
+                f"command '{command}' probably failed!"
+            )
+            sys.exit(1)
+
+    # Save cache
+    with open(cachefile, "w") as f:
+        json.dump(fdata.serialize(), f)
+
+    commit_written()
 
 
 def main(args):
@@ -169,16 +365,16 @@ def main(args):
     DumpLexiconScript("", list(lexicon.values()), lexicon_path)
     logger.info(f"Wrote lexicon script to {lexicon_path}")
 
+    sounds_to_keep: set[str] = set()
+
     for voice in all_voices:
         logger.info(f"ID = {voice.ID}, assigned_sex = {voice.assigned_sex}")
         for phrase in voice_assignments[voice.SEX]:
-            logger.warning(f"{phrase}")
-    #         GenerateForWord(phrase, voice, soundsToKeep, args)
-    #         sexes = set()
-    #         for vk, fd in phrase.files.items():
-    #             soundsToKeep.add(
-    #                 os.path.abspath(os.path.join(DIST_DIR, fd.filename))
-    #             )
+            generate_for_word(phrase, voice, sounds_to_keep, lexicon_path, args)
+            for fd in phrase.files.values():
+                sounds_to_keep.add(
+                    os.path.abspath(os.path.join(DIST_DIR, fd.filename))
+                )
 
     # jenv = jinja2.Environment(
     #     loader=jinja2.FileSystemLoader(["./templates"])
