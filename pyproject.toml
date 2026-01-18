@@ -1,23 +1,46 @@
-[tool.poetry]
-name = "ss13-vox"
-version = "0.0.1"
-description = "Announcements wordlist generator for SS13"
-authors = ["Rob Nelson <nexisentertainment@gmail.com>"]
-license = "MIT"
-
-[tool.poetry.dependencies]
-python = "^3.8"
-pybuildtools = "^0.5.1"
-requests = "^2.28.1"
-Werkzeug = "^2.2.2"
-
-[tool.poetry.dev-dependencies]
-autopep8 = "^1.7.0"
-isort = "^5.10.1"
-mypy = "^0.971"
-poetryup = "^0.10.0"
-pybuildtools = "^0.5.1"
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools", "setuptools-git-versioning", "build"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools-git-versioning]
+enabled = true
+
+[tool.setuptools.packages.find]
+include = ["ss13vox*"]
+
+[project]
+dynamic = ["version"]
+name = "ss13-vox"
+dependencies = [
+    "pyyaml",
+    "jinja2",
+]
+authors = [
+  {name = "Antonio Bartalesi", email = "antonio.bartalesi@gmail.com"},
+]
+description = "Fork of N3X15/ss13-vox - Text-to-Speech announcement system for Space Station 13"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[project.optional-dependencies]
+daemon = [
+    "werkzeug",
+    "ruamel.yaml",
+]
+test = [
+    "pytest",
+]
+
+[project.urls]
+repository = "https://github.com/A-Barta/ss13-vox"
+
+[project.scripts]
+ss13-vox = "ss13vox.cli:main"
+

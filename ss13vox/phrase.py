@@ -1,77 +1,96 @@
 from typing import List, Optional, Dict
 from enum import IntFlag
 
-from buildtools import log
-import re, os, string
-__ALL__ = ['EPhraseFlags', 'Phrase', 'ParsePhraseListFrom']
+import re
+import os
+import string
+
+from logging import getLogger
+
+__ALL__ = ["EPhraseFlags", "Phrase", "ParsePhraseListFrom"]
 
 # https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
-WINDOZE_RESERVED = re.compile(r'^(CON|PRN|AUX|NUL|COM)[0-9]?$', re.IGNORECASE)
+WINDOZE_RESERVED = re.compile(r"^(CON|PRN|AUX|NUL|COM)[0-9]?$", re.IGNORECASE)
 
-ACCEPTABLE_FILECHARS = string.ascii_letters + string.digits + '_,.'
-REPL_FILECHAR = '_'
+ACCEPTABLE_FILECHARS = string.ascii_letters + string.digits + "_,."
+REPL_FILECHAR = "_"
 
 S_TO_DS = 10
 
+logger = getLogger("AB Main")
+
+
 def _fixChars(filename) -> str:
-    return ''.join([(c if c in ACCEPTABLE_FILECHARS else REPL_FILECHAR) for c in filename])
+    return "".join(
+        [(c if c in ACCEPTABLE_FILECHARS else REPL_FILECHAR) for c in filename]
+    )
+
 
 class EPhraseFlags(IntFlag):
-    NONE       = 0
-    OLD_VOX    = 1 # AKA preexisting
-    SFX        = 2
-    NOT_VOX    = 4 # Not used in VOX announcements (meaning stuff that doesn't go in sound/vox_fem/)
-    NO_PROCESS = 8 # No echos/reverb
-    NO_TRIM    = 16 # Don't remove silence
-    SING       = 32 # Enables `-mode singing` in festival
+    NONE = 0
+    OLD_VOX = 1  # AKA preexisting
+    SFX = 2
+    NOT_VOX = 4  # Not used in VOX announcements
+    # (meaning stuff that doesn't go in sound/vox_fem/)
+    NO_PROCESS = 8  # No echos/reverb
+    NO_TRIM = 16  # Don't remove silence
+    SING = 32  # Enables `-mode singing` in festival
+
 
 class FileData(object):
     def __init__(self):
-        self.filename: str = ''
-        self.voice: str = ''
-        self.checksum: str = ''
+        self.filename: str = ""
+        self.voice: str = ""
+        self.checksum: str = ""
         self.duration: float = 0.0
         self.size: int = 0
 
     def fromJSON(self, data: dict) -> None:
-        self.size = int(data['format']['size'])
-        self.duration = float(data['format']['duration'])
+        self.size = int(data["format"]["size"])
+        self.duration = float(data["format"]["duration"])
         assert self.duration > 0.0
 
     def serialize(self) -> dict:
         return {
-            'filename': self.filename,
-            'voice': self.voice,
-            'checksum': self.checksum,
-            'duration': self.duration,
-            'size': self.size
+            "filename": self.filename,
+            "voice": self.voice,
+            "checksum": self.checksum,
+            "duration": self.duration,
+            "size": self.size,
         }
 
     def deserialize(self, data: dict) -> None:
-        self.filename = data['filename']
-        self.voice = data['voice']
-        self.checksum = data['checksum']
-        self.duration = data['duration']
-        self.size = data['size']
+        self.filename = data["filename"]
+        self.voice = data["voice"]
+        self.checksum = data["checksum"]
+        self.duration = data["duration"]
+        self.size = data["size"]
 
     def toBYOND(self) -> str:
-        return f'list("filename" = "{self.filename}", "checksum" = "{self.checksum}", "duration" = {self.duration*S_TO_DS}, "voice" = "{self.voice}", "size" = {self.size})'
+        return (
+            f'list("filename" = "{self.filename}", "checksum" = '
+            f'"{self.checksum}", "duration" = {self.duration*S_TO_DS}, '
+            f'"voice" = "{self.voice}", "size" = {self.size})'
+        )
 
     def getDurationInDS(self) -> float:
         return -1.0 if self.duration < 0 else self.duration * S_TO_DS
 
+
 class Phrase(object):
     def __init__(self):
         #: Unique ID of the phrase. _honk, ass, voxtest, etc.
-        self.id: str = ''
-        #: Word count. Not entirely accurate since some phrases use multiple words to work around festival fuckups.
+        self.id: str = ""
+        #: Word count. Not entirely accurate since some phrases use
+        # multiple words to work around festival fuckups.
         self.wordlen: int = 0
-        #: Textual representation of the phrase, as fed to festival. SFX phrases use this as the filename.
-        self.phrase: str = ''
+        #: Textual representation of the phrase, as fed to festival.
+        # SFX phrases use this as the filename.
+        self.phrase: str = ""
         #: Parsed representation of the phrase.  None in SFX.
         self.parsed_phrase: Optional[List[str]] = None
         #: Output filename.
-        self.filename: str = ''
+        self.filename: str = ""
         #: Any comments before this line.
         self.comments_before: List[str] = []
         self.flags: EPhraseFlags = EPhraseFlags.NONE
@@ -80,15 +99,18 @@ class Phrase(object):
         #: Output filename.
         self.files: Dict[str, FileData] = {}
         #: Used for organize.py.
-        self.category: str = ''
+        self.category: str = ""
 
         self.override_duration: Optional[float] = None
         self.override_size: Optional[int] = None
 
         #: File in which this phrase was defined.
-        self.deffile: str = ''
+        self.deffile: str = ""
         #: Line in which this phrase was defined.
         self.defline: int = 0
+
+    def __repr__(self) -> str:
+        return self.phrase
 
     def getFinalFilename(self, sex: str, silent: bool = False) -> str:
         # Final-ish filename
@@ -102,73 +124,82 @@ class Phrase(object):
         m = WINDOZE_RESERVED.match(bn)
         if m is not None:
             # CON -> C_ON
-            fbn = f'{bn[0]}_{bn[1:]}'
+            fbn = f"{bn[0]}_{bn[1:]}"
             if not silent:
-                log.warning('%s is a reserved filename in Windows, changed to %s!', bn, fbn)
+                logger.warning(
+                    "%s is a reserved filename in Windows, changed to %s!",
+                    bn,
+                    fbn,
+                )
             bn = fbn
 
         fbn = _fixChars(bn)
         if fbn != bn:
             if not silent:
-                log.warning('%s had invalid chars, changed to %s!', bn, fbn)
+                logger.warning("%s had invalid chars, changed to %s!", bn, fbn)
             bn = fbn
 
-        return os.path.join(dn, bn+ext)
+        return os.path.join(dn, bn + ext)
 
     def getAssetKey(self, sex: str) -> str:
-        return f'{sex}.{self.id}.ogg'
+        return f"{sex}.{self.id}.ogg"
 
     def parsePhrase(self, phrase: str) -> None:
         self.phrase = phrase
         # sound/ai/announcement_16.ogg = ...
-        if '/' in self.id:
+        if "/" in self.id:
             self.flags |= EPhraseFlags.NOT_VOX
 
         # _honk = @samples/bikehorn.wav
-        if self.phrase.startswith('@'):
+        if self.phrase.startswith("@"):
             self.parsed_phrase = None
             self.flags |= EPhraseFlags.SFX
             self.phrase = self.phrase[1:]
 
         # singing = &songs/america.xml
-        elif self.phrase.startswith('&'):
+        elif self.phrase.startswith("&"):
             self.parsed_phrase = None
             self.flags |= EPhraseFlags.SING
             self.phrase = self.phrase[1:]
 
-        self.parsed_phrase = self.phrase.split(' ')
+        self.parsed_phrase = self.phrase.split(" ")
         self.wordlen = len(self.parsed_phrase)
 
     def hasFlag(self, flag: EPhraseFlags) -> bool:
-        '''
+        """
         Convenient shortcut.
-        '''
+        """
         return (self.flags & flag) == flag
 
     def serialize(self) -> dict:
         o = {
-            'wordlen':  self.wordlen,
-            'files': {k:v.serialize() for k,v in self.files.items()},
-            'flags': [x.name.lower().replace('_', '-') for x in list(EPhraseFlags) if x.value > 0 and (self.flags & x) == x]
+            "wordlen": self.wordlen,
+            "files": {k: v.serialize() for k, v in self.files.items()},
+            "flags": [
+                x.name.lower().replace("_", "-")
+                for x in list(EPhraseFlags)
+                if x.value > 0 and (self.flags & x) == x
+            ],
         }
         if self.flags & EPhraseFlags.SFX:
-            o['input-filename'] = self.phrase
+            o["input-filename"] = self.phrase
         else:
-            o['phrase'] = self.parsed_phrase
+            o["phrase"] = self.parsed_phrase
         return o
 
     def fromOverrides(self, data: dict) -> None:
-        self.wordlen = data.get('word-count', self.wordlen)
-        for f in data.get('flags', []):
-            self.flags |= EPhraseFlags[f.replace('-','_').upper()]
-        self.override_duration = data.get('duration')
-        self.override_size = data.get('size')
+        self.wordlen = data.get("word-count", self.wordlen)
+        for f in data.get("flags", []):
+            self.flags |= EPhraseFlags[f.replace("-", "_").upper()]
+        self.override_duration = data.get("duration")
+        self.override_size = data.get("size")
+
 
 def ParsePhraseListFrom(filename: str) -> List[Phrase]:
     phrases = []
     comments_before = []
-    in_cat = ''
-    with open(filename, 'r') as f:
+    in_cat = ""
+    with open(filename, "r") as f:
         ln = 0
         for line in f:
             ln += 1
@@ -177,11 +208,11 @@ def ParsePhraseListFrom(filename: str) -> List[Phrase]:
             if line.startswith("#"):
                 comments_before += [line[1:]]
                 continue
-            if line.strip() == '':
+            if line.strip() == "":
                 comments_before = []
                 continue
-            if '=' in line:
-                (wordfile, phrase) = line.split('=', maxsplit=1)
+            if "=" in line:
+                (wordfile, phrase) = line.split("=", maxsplit=1)
                 p = Phrase()
                 p.deffile = filename
                 p.defline = ln
@@ -191,7 +222,8 @@ def ParsePhraseListFrom(filename: str) -> List[Phrase]:
                 p.category = in_cat
                 comments_before = []
                 phrases += [p]
-            elif line != '' and ' ' not in line and len(line) > 0:
+                logger.debug(f"Adding phrase {p}")
+            elif line != "" and " " not in line and len(line) > 0:
                 p = Phrase()
                 p.deffile = filename
                 p.defline = ln
@@ -201,4 +233,5 @@ def ParsePhraseListFrom(filename: str) -> List[Phrase]:
                 p.category = in_cat
                 comments_before = []
                 phrases += [p]
+                logger.debug(f"Adding phrase {p}")
     return phrases
