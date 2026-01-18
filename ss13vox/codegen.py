@@ -87,7 +87,9 @@ class DMCodeGenerator(ABC):
         """Lazy-loaded Jinja2 environment."""
         if self._env is None:
             self._env = jinja2.Environment(
-                loader=jinja2.FileSystemLoader([str(self.config.template_dir)]),
+                loader=jinja2.FileSystemLoader(
+                    [str(self.config.template_dir)]
+                ),
                 trim_blocks=True,
                 lstrip_blocks=True,
             )
@@ -172,10 +174,12 @@ class TGCodeGenerator(DMCodeGenerator):
 
     TEMPLATE_NAME = "tglist.jinja"
 
+    DEFAULT_OUTPUT = "code/modules/mob/living/silicon/ai/vox_sounds.dm"
+
     def __init__(
         self,
         config: Optional[CodeGenConfig] = None,
-        output_filename: str = "code/modules/mob/living/silicon/ai/vox_sounds.dm",
+        output_filename: str = DEFAULT_OUTPUT,
     ):
         super().__init__(config)
         self.output_filename = output_filename
@@ -251,13 +255,14 @@ class PureCodeGenerator(DMCodeGenerator):
                 if sex not in phrase.files:
                     continue
                 file_data = phrase.files[sex]
+                fn = file_data.filename
                 builder.add_instruction(
-                    f'vox_sounds["{sex}"]["{phrase.id}"] = \'{file_data.filename}\'',
+                    f'vox_sounds["{sex}"]["{phrase.id}"] = \'{fn}\'',
                     cost=16,
                 )
-                duration_ds = file_data.getDurationInDS()
+                dur = file_data.getDurationInDS()
                 builder.add_instruction(
-                    f'vox_sound_lengths[\'{file_data.filename}\'] = {duration_ds:0.4g}',
+                    f"vox_sound_lengths['{fn}'] = {dur:0.4g}",
                     cost=13,
                 )
 
@@ -292,7 +297,9 @@ class PureCodeGenerator(DMCodeGenerator):
 
         # Add proc calls
         for proc in builder.procs.values():
-            lines.append(f"  src.{proc.name}() // {proc.instructions} instructions")
+            lines.append(
+                f"  src.{proc.name}() // {proc.instructions} instructions"
+            )
 
         # Add proc definitions
         for proc in builder.procs.values():
@@ -300,11 +307,13 @@ class PureCodeGenerator(DMCodeGenerator):
             for line in proc.lines:
                 lines.append(f"  {line}")
 
-        lines.extend([
-            "",
-            "/var/__vox_sound_meta_init/__vox_sound_meta_instance = new",
-            "#endif",
-        ])
+        lines.extend(
+            [
+                "",
+                "/var/__vox_sound_meta_init/__vox_sound_meta_instance = new",
+                "#endif",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -331,14 +340,16 @@ class PureCodeGenerator(DMCodeGenerator):
                 if sex not in phrase.files:
                     continue
                 filename = phrase.files[sex].filename
-                lines.append(f'    "{phrase.id}" = \'{filename}\',')
+                lines.append(f"    \"{phrase.id}\" = '{filename}',")
             lines.append("  ),")
 
-        lines.extend([
-            "))",
-            "",
-            "#endif //AI_VOX",
-        ])
+        lines.extend(
+            [
+                "))",
+                "",
+                "#endif //AI_VOX",
+            ]
+        )
 
         return "\n".join(lines)
 
