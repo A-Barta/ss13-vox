@@ -4,6 +4,7 @@ import json
 import hashlib
 import logging
 import argparse
+import pathlib
 import subprocess
 import multiprocessing
 
@@ -20,6 +21,7 @@ from ss13vox.voice import (
 )
 from ss13vox.pronunciation import DumpLexiconScript, ParseLexiconText
 from ss13vox.phrase import EPhraseFlags, FileData, ParsePhraseListFrom, Phrase
+from ss13vox.codegen import CodeGenConfig, get_generator
 
 FORMAT = "%(levelname)s --- %(message)s"
 # LOGLEVEL = logging.INFO
@@ -403,49 +405,33 @@ def main(args):
                     os.path.abspath(os.path.join(DIST_DIR, fd.filename))
                 )
 
-    # jenv = jinja2.Environment(
-    #     loader=jinja2.FileSystemLoader(["./templates"])
-    # )
-    # jenv.add_extension("jinja2.ext.do")  # {% do ... %}
-    # templ = jenv.get_template(templatefile)
-    # with log.info("Writing sound list to %s...", vox_sounds_path):
-    #     os_utils.ensureDirExists(os.path.dirname(vox_sounds_path))
-    #     assetcache = {}
-    #     sound2id = {}
-    #     with open(vox_sounds_path, "w") as f:
-    #         sexes = {
-    #             "fem": [],
-    #             "mas": [],
-    #             "default": [],
-    #             # 'sfx': [],
-    #         }
-    #         for p in phrases:
-    #             for k in p.files.keys():
-    #                 assetcache[p.getAssetKey(k)] = p.files[k].filename
-    #                 sound2id[p.files[k].filename] = p.getAssetKey(k)
-    #             if p.hasFlag(EPhraseFlags.NOT_VOX):
-    #                 continue
-    #             for k in p.files.keys():
-    #                 if p.hasFlag(EPhraseFlags.SFX):
-    #                     for sid in ("fem", "mas"):
-    #                         if p not in sexes[sid]:
-    #                             sexes[sid].append(p)
-    #                 else:
-    #                     sexes[k].append(p)
-    #         f.write(
-    #             templ.render(
-    #                 InitClass=InitClass,
-    #                 SEXES=sexes,
-    #                 ASSETCACHE=assetcache,
-    #                 SOUND2ID=sound2id,
-    #                 PHRASES=[
-    #                     p
-    #                     for p in phrases
-    #                     if not p.hasFlag(EPhraseFlags.NOT_VOX)
-    #                 ],
-    #             )
-    #         )
-    # soundsToKeep.add(os.path.abspath(vox_sounds_path))
+    # Build sexes dict for code generation
+    sexes: dict[str, list[Phrase]] = {
+        "fem": [],
+        "mas": [],
+    }
+    for p in phrases:
+        if p.hasFlag(EPhraseFlags.NOT_VOX):
+            continue
+        for k in p.files.keys():
+            if p.hasFlag(EPhraseFlags.SFX):
+                # SFX phrases go to both fem and mas
+                for sid in ("fem", "mas"):
+                    if p not in sexes[sid]:
+                        sexes[sid].append(p)
+            else:
+                if k in sexes:
+                    sexes[k].append(p)
+
+    # Generate DM code
+    codegen_config = CodeGenConfig(
+        template_dir=pathlib.Path("templates"),
+        output_dir=pathlib.Path(DIST_DIR),
+    )
+    generator = get_generator(station, codegen_config, use_templates=True)
+    vox_sounds_path = generator.write(phrases, sexes)
+    logger.info(f"Wrote DM code to {vox_sounds_path}")
+    sounds_to_keep.add(os.path.abspath(str(vox_sounds_path)))
 
     # os_utils.ensureDirExists(DATA_DIR)
     # with open(os.path.join(DATA_DIR, "vox_data.json"), "w") as f:
