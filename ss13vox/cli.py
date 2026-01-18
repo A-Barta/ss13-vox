@@ -501,8 +501,8 @@ def parse_args() -> dict:
         "--config",
         "-c",
         type=str,
-        default="abconfig.yml",
-        help="The configuration file to use, defaults to 'abconfig.yml",
+        default="vox_config.yaml",
+        help="The configuration file to use, defaults to 'vox_config.yaml",
     )
     return vars(parser.parse_args())
 
