@@ -3,6 +3,8 @@ import string
 import random
 import logging
 import collections
+import subprocess
+from pathlib import Path
 from typing import Dict, List
 
 from .phrase import Phrase, EPhraseFlags, ParsePhraseListFrom
@@ -111,3 +113,90 @@ def organize_wordlists() -> None:
     organize_file("wordlists/vg/chemistry.txt")
     organize_file("wordlists/vg/mining.txt")
     organize_file("wordlists/vg/misc.txt", sort_sections=True)
+
+
+def generate_speech_from_file(
+    input_file: str,
+    output_file: str,
+    voice_id: str = "us-slt",
+    tmp_dir: str = "tmp/speech",
+) -> str:
+    """
+    Generate concatenated speech audio from a text file.
+
+    Reads a text file line by line, generates TTS audio for each line,
+    and concatenates them into a single output file.
+
+    Args:
+        input_file: Path to text file with one phrase per line
+        output_file: Path for the output audio file (e.g., "output.mp3")
+        voice_id: Voice ID to use (default: "us-slt")
+        tmp_dir: Directory for temporary audio clips
+
+    Returns:
+        Path to the output file
+    """
+    from .voice import VoiceRegistry
+    from .runtime import VOXRuntime
+
+    # Initialize runtime
+    runtime = VOXRuntime()
+    runtime.loadConfig()
+    runtime.initialize()
+    voice = VoiceRegistry.Get(voice_id)
+
+    # Create temp directory
+    tmp_path = Path(tmp_dir)
+    tmp_path.mkdir(parents=True, exist_ok=True)
+
+    # Generate audio for each line
+    clips: List[Path] = []
+    with open(input_file, "r") as f:
+        for line in f:
+            text = line.strip()
+            if not text:
+                continue
+
+            # Use MD5 hash as filename for caching
+            text_hash = hashlib.md5(text.encode()).hexdigest()
+            clip_file = tmp_path / f"{text_hash}.ogg"
+
+            if not clip_file.is_file():
+                # Create phrase and generate audio
+                p = Phrase()
+                p.phrase = text
+                p.parsed_phrase = text.split(" ")
+                p.wordlen = len(p.parsed_phrase)
+                runtime.createSoundFromPhrase(p, voice, str(clip_file))
+                logger.info("Generated: %s", text[:50])
+
+            clips.append(clip_file)
+
+    if not clips:
+        raise ValueError(f"No lines found in {input_file}")
+
+    # Concatenate all clips using sox
+    sox_cmd = ["sox"] + [str(c) for c in clips] + [output_file]
+    logger.info("Concatenating %d clips into %s", len(clips), output_file)
+    subprocess.run(sox_cmd, check=True)
+
+    return output_file
+
+
+def generate_allstar(output_file: str = "allstar.mp3") -> str:
+    """
+    Generate the All Star song using VOX TTS.
+
+    Reads lyrics from wordlists/heynow.txt and generates speech audio.
+
+    Args:
+        output_file: Output filename (default: "allstar.mp3")
+
+    Returns:
+        Path to the output file
+    """
+    return generate_speech_from_file(
+        input_file="wordlists/heynow.txt",
+        output_file=output_file,
+        tmp_dir="tmp/allstar",
+    )
