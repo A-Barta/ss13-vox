@@ -3,6 +3,8 @@ import random
 import string
 import uuid
 from pathlib import Path
+
+from ss13vox.consts import DAEMON_PHRASE_POOL_SIZE
 from ss13vox.daemon.phraseref import PhraseRef
 from ss13vox.phrase import Phrase
 
@@ -35,7 +37,7 @@ class VOXGameServer:
         return {"secret": self.secret_key}
 
     def addPhrase(self, voice: str, phrase: Phrase) -> PhraseRef:
-        if (len(self.phrase_pool) + 1) > 50:
+        if (len(self.phrase_pool) + 1) > DAEMON_PHRASE_POOL_SIZE:
             oldpid = self.phrase_pool.popleft()
             self.phrases[oldpid].remove()
             del self.phrases[oldpid]

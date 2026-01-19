@@ -13,7 +13,12 @@ import multiprocessing
 import time
 import collections
 
-from .consts import PRE_SOX_ARGS, RECOMPRESS_ARGS, SILENCE_PADDING_DURATION
+from .consts import (
+    PRE_SOX_ARGS,
+    RECOMPRESS_ARGS,
+    SILENCE_PADDING_DURATION,
+    VOX_DATA_VERSION,
+)
 from .config import load_config, config_to_dict
 from .voice import (
     EVoiceSex,
@@ -448,7 +453,7 @@ def generate(args: dict) -> None:
     vox_data_path = os.path.join(DATA_DIR, "vox_data.json")
     with open(vox_data_path, "w") as f:
         data = {
-            "version": 2,
+            "version": VOX_DATA_VERSION,
             "compiled": time.time(),
             "voices": configured_voices,
             "words": collections.OrderedDict(

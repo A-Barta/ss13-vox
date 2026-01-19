@@ -21,6 +21,14 @@ from .consts import (
     SOX_ECHO_DECAY_1,
     SOX_ECHO_DELAY_2_MS,
     SOX_ECHO_DECAY_2,
+    SOX_BASS_GAIN_DB,
+    SOX_HIGHPASS_FREQ_HZ,
+    SOX_COMPAND_ATTACK_DECAY,
+    SOX_COMPAND_TRANSFER,
+    SOX_COMPAND_GAIN_DB,
+    SOX_COMPAND_INITIAL_DB,
+    VOICE_PITCH_SHIFT_MALE,
+    VOICE_STRETCH_STANDARD,
 )
 
 
@@ -98,18 +106,18 @@ class Voice(object):
         sox_args += [
             # Attenuate bass
             "bass",
-            "-40",
-            # Pass frequencies above whatever this is
+            SOX_BASS_GAIN_DB,
+            # Pass frequencies above cutoff (applied twice for steeper rolloff)
             "highpass",
-            "22",
+            SOX_HIGHPASS_FREQ_HZ,
             "highpass",
-            "22",
+            SOX_HIGHPASS_FREQ_HZ,
             # Dynamic range compression
             "compand",
-            "0.01,1",
-            "-90,-90,-70,-70,-60,-20,0,0",
-            "-5",
-            "-20",
+            SOX_COMPAND_ATTACK_DECAY,
+            SOX_COMPAND_TRANSFER,
+            SOX_COMPAND_GAIN_DB,
+            SOX_COMPAND_INITIAL_DB,
             # Add some fake hallway echos
             # Good with stretch, otherwise sounds like bees.
             "echos",
@@ -173,10 +181,10 @@ class USRMSMale(Voice):
         sox_args = [
             # Drop pitch a bit.
             "pitch",
-            "-200",
+            VOICE_PITCH_SHIFT_MALE,
             # Starts the gravelly sound, lowers pitch a bit.
             "stretch",
-            "1.1",
+            VOICE_STRETCH_STANDARD,
             # This was supposed to make it sound like the HL VOX
             # by increasing the gravelly quality by "gating" the incoming
             # stream, but it interferes with the voice's synth wave and causes
@@ -261,7 +269,7 @@ class USSLTFemale(Voice):
         sox_args = [
             # Starts the gravelly sound, lowers pitch a bit.
             "stretch",
-            "1.1",
+            VOICE_STRETCH_STANDARD,
         ]
         return sox_args + super().genSoxArgs(args)
 
@@ -283,7 +291,7 @@ class USCLBFemale(Voice):
         sox_args = [
             # Starts the gravelly sound, lowers pitch a bit.
             "stretch",
-            "1.1",
+            VOICE_STRETCH_STANDARD,
         ]
         return sox_args + super().genSoxArgs(args)
 
