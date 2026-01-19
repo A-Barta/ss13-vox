@@ -69,7 +69,7 @@ def sanitize_tts_input(
             sanitized = re.sub(pattern, "", sanitized)
         elif re.search(pattern, sanitized):
             raise SanitizationError(
-                f"Text contains dangerous character matching pattern: {pattern}"
+                f"Text contains dangerous char pattern: {pattern}"
             )
 
     # Normalize whitespace (collapse multiple spaces, strip edges)
@@ -83,8 +83,9 @@ def sanitize_tts_input(
             if not re.match(r"[a-zA-Z0-9\s\.,!\?'\"-]", char):
                 unsafe_chars.add(repr(char))
         if unsafe_chars:
+            chars = ", ".join(sorted(unsafe_chars))
             raise SanitizationError(
-                f"Text contains invalid characters: {', '.join(sorted(unsafe_chars))}"
+                f"Text contains invalid characters: {chars}"
             )
         raise SanitizationError("Text contains invalid characters")
 

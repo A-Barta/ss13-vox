@@ -82,9 +82,8 @@ class PhraseOverride(BaseModel):
         }
         for flag in v:
             if flag not in valid_flags:
-                raise ValueError(
-                    f"Invalid flag '{flag}'. Valid flags: {', '.join(sorted(valid_flags))}"
-                )
+                valid = ", ".join(sorted(valid_flags))
+                raise ValueError(f"Invalid flag '{flag}'. Valid: {valid}")
         return v
 
 

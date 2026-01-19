@@ -2,7 +2,6 @@
 Pytest configuration and shared fixtures for SS13-VOX tests.
 """
 
-import os
 import tempfile
 from pathlib import Path
 

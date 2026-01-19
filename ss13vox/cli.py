@@ -1,5 +1,14 @@
 """
 Command-line interface for SS13-VOX generation.
+
+This module provides the main CLI entry point for generating TTS audio files.
+The generation process is broken into discrete phases:
+1. Configuration loading and validation
+2. Voice setup and assignment
+3. Phrase parsing from wordlists
+4. Audio file generation
+5. Code generation (DM files)
+6. Output file management
 """
 
 import os
@@ -12,6 +21,7 @@ import subprocess
 import multiprocessing
 import time
 import collections
+from dataclasses import dataclass, field
 
 from .consts import (
     PRE_SOX_ARGS,
@@ -19,7 +29,7 @@ from .consts import (
     SILENCE_PADDING_DURATION,
     VOX_DATA_VERSION,
 )
-from .config import load_config, config_to_dict
+from .config import load_config, config_to_dict, VoxConfig
 from .voice import (
     EVoiceSex,
     SFXVoice,
@@ -27,7 +37,7 @@ from .voice import (
     Voice,
     VoiceRegistry,
 )
-from .pronunciation import DumpLexiconScript, ParseLexiconText
+from .pronunciation import DumpLexiconScript, ParseLexiconText, Pronunciation
 from .phrase import EPhraseFlags, FileData, ParsePhraseListFrom, Phrase
 from .codegen import CodeGenConfig, get_generator
 from .exceptions import AudioGenerationError, ConfigError, ValidationError
@@ -38,6 +48,40 @@ LOGLEVEL = logging.DEBUG
 TEMP_DIR = "tmp"
 DIST_DIR = "dist"
 DATA_DIR = os.path.join(DIST_DIR, "data")
+
+
+@dataclass
+class GenerationContext:
+    """Holds shared state during the generation process."""
+
+    args: dict
+    station: str = ""
+    config: dict = field(default_factory=dict)
+    validated_config: VoxConfig | None = None
+
+    # Voice configuration
+    voices: list[Voice] = field(default_factory=list)
+    all_voices: list[Voice] = field(default_factory=list)
+    voice_assignments: dict[EVoiceSex, list[Phrase]] = field(
+        default_factory=dict
+    )
+    configured_voices: dict[str, dict] = field(default_factory=dict)
+    default_voice: Voice | None = None
+    sfx_voice: SFXVoice | None = None
+
+    # Paths
+    preex_sound: str = ""
+    nuvox_sound: str = ""
+    lexicon_path: str = ""
+
+    # Phrases
+    phrases: list[Phrase] = field(default_factory=list)
+    phrases_by_id: dict[str, Phrase] = field(default_factory=dict)
+    lexicon: dict[str, Pronunciation] = field(default_factory=dict)
+
+    # Output tracking
+    sounds_to_keep: set[str] = field(default_factory=set)
+
 
 logger = logging.getLogger("ss13vox")
 
@@ -259,75 +303,72 @@ def generate_for_word(
     commit_written()
 
 
-def generate(args: dict) -> None:
-    """Main generation logic."""
-    voices = []
+# =============================================================================
+# Generation Pipeline Functions
+# =============================================================================
 
-    logger.info("Started voice generation")
-    for _k, _v in args.items():
-        logger.debug(f"Using argument {_k}={_v}")
-    logger.debug(
-        f"Paths:\n  temporary folder = {TEMP_DIR}\n"
-        f"  distribution folder = {DIST_DIR}\n"
-        f"  voices = {voices}\n"
-    )
 
-    # Load and validate config
-    station = args["station"]
-    validated_config = load_config(args["config"])
+def _load_and_validate_config(ctx: GenerationContext) -> None:
+    """Load and validate configuration from file."""
+    ctx.station = ctx.args["station"]
+    ctx.validated_config = load_config(ctx.args["config"])
 
     # Override codebase if --station is specified and different
-    if station != validated_config.codebase:
+    if ctx.station != ctx.validated_config.codebase:
         logger.info(
-            f"Using station '{station}' (config default: '{validated_config.codebase}')"
+            f"Using station '{ctx.station}' "
+            f"(config default: '{ctx.validated_config.codebase}')"
         )
 
     # Validate that the requested station exists in paths
-    if station not in validated_config.paths:
-        available = ", ".join(sorted(validated_config.paths.keys()))
+    if ctx.station not in ctx.validated_config.paths:
+        available = ", ".join(sorted(ctx.validated_config.paths.keys()))
         raise ConfigError(
-            f"Station '{station}' not found in config paths. Available: {available}"
+            f"Station '{ctx.station}' not found in config paths. "
+            f"Available: {available}"
         )
 
     # Convert to dict format for backward compatibility
-    config = config_to_dict(validated_config, station)
+    ctx.config = config_to_dict(ctx.validated_config, ctx.station)
 
-    # configure
-    preexSound = config["paths"][station]["sound"]["old-vox"]
-    nuvoxSound = config["paths"][station]["sound"]["new-vox"]
+    # Set sound paths
+    ctx.preex_sound = ctx.config["paths"][ctx.station]["sound"]["old-vox"]
+    ctx.nuvox_sound = ctx.config["paths"][ctx.station]["sound"]["new-vox"]
 
-    voice_assignments = {}
-    all_voices = []
-    default_voice: Voice = VoiceRegistry.Get(USSLTFemale.ID)
-    # This should default to config['voices']['default']
-    sfx_voice: SFXVoice = SFXVoice()
-    configured_voices: dict[str, dict] = {}
 
-    for sexID, voiceid in config["voices"].items():
-        voice = VoiceRegistry.Get(voiceid)
-        if not sexID:
-            raise ConfigError(f"Empty sex ID in voice config for '{voiceid}'")
-        voice.assigned_sex = sexID
-        if sexID in ("fem", "mas"):
-            sex = EVoiceSex(sexID)
+def _setup_voices(ctx: GenerationContext) -> None:
+    """Configure voices from config settings."""
+    ctx.default_voice = VoiceRegistry.Get(USSLTFemale.ID)
+    ctx.sfx_voice = SFXVoice()
+
+    for sex_id, voice_id in ctx.config["voices"].items():
+        voice = VoiceRegistry.Get(voice_id)
+        if not sex_id:
+            raise ConfigError(f"Empty sex ID in voice config for '{voice_id}'")
+
+        voice.assigned_sex = sex_id
+
+        if sex_id in ("fem", "mas"):
+            sex = EVoiceSex(sex_id)
             if voice.SEX != sex:
                 raise ConfigError(
-                    f"Voice '{voiceid}' has SEX={voice.SEX.value} but is "
-                    f"assigned to '{sexID}'"
+                    f"Voice '{voice_id}' has SEX={voice.SEX.value} but is "
+                    f"assigned to '{sex_id}'"
                 )
-            voices.append(voice)
-        elif sexID == "default":
-            pass
-            # default_voice = voice
-        voice_assignments[voice.SEX] = []
-        all_voices.append(voice)
-        configured_voices[sexID] = voice.serialize()
+            ctx.voices.append(voice)
+
+        ctx.voice_assignments[voice.SEX] = []
+        ctx.all_voices.append(voice)
+        ctx.configured_voices[sex_id] = voice.serialize()
 
     logger.info(
-        f"List of all voices found: {[voice.ID for voice in all_voices]}"
+        f"List of all voices found: {[voice.ID for voice in ctx.all_voices]}"
     )
-    logger.info(f"List of all voices configured: {configured_voices}")
+    logger.info(f"List of all voices configured: {ctx.configured_voices}")
 
+
+def _ensure_directories() -> None:
+    """Ensure required directories exist."""
     logger.info(f"Checking that {DATA_DIR} exists")
     if not os.path.exists(DATA_DIR):
         logger.info(f"{DATA_DIR} not found, creating it")
@@ -336,44 +377,58 @@ def generate(args: dict) -> None:
     else:
         logger.info(f"{DATA_DIR} exists, moving on")
 
-    lexicon = ParseLexiconText("lexicon.txt")
+    logger.info(f"Checking that {TEMP_DIR} exists")
+    if not os.path.exists(TEMP_DIR):
+        logger.info(f"{TEMP_DIR} not found, creating it")
+        os.makedirs(TEMP_DIR)
 
-    phrases: list[Phrase] = []
-    phrasesByID = {}
-    max_wordlen = config["max-wordlen"]
+
+def _parse_phrases(ctx: GenerationContext) -> None:
+    """Parse phrases from wordlist files and check for duplicates."""
+    ctx.lexicon = ParseLexiconText("lexicon.txt")
+    max_wordlen = ctx.config["max-wordlen"]
     duplicates = []
-    for filename in config["phrasefiles"]:
+
+    for filename in ctx.config["phrasefiles"]:
         for p in ParsePhraseListFrom(filename):
             p.wordlen = min(max_wordlen, p.wordlen)
-            if p.id in phrasesByID:
-                duplicated = phrasesByID[p.id]
+            if p.id in ctx.phrases_by_id:
+                duplicated = ctx.phrases_by_id[p.id]
                 duplicates.append(
-                    f"Duplicate phrase '{p.id}' in {p.deffile}:{p.defline} "
-                    f"(first seen in {duplicated.deffile}:{duplicated.defline})"
+                    f"Duplicate phrase '{p.id}' in "
+                    f"{p.deffile}:{p.defline} (first seen in "
+                    f"{duplicated.deffile}:{duplicated.defline})"
                 )
                 continue
-            phrases += [p]
-            phrasesByID[p.id] = p
+            ctx.phrases.append(p)
+            ctx.phrases_by_id[p.id] = p
+
     if duplicates:
         raise ValidationError(
             f"Found {len(duplicates)} duplicate phrase(s):\n"
             + "\n".join(f"  - {d}" for d in duplicates)
         )
 
-    phrases.sort(key=lambda x: x.id)
+    ctx.phrases.sort(key=lambda x: x.id)
 
-    overrides = config["overrides"]
-    for phrase in phrases:
+
+def _apply_overrides_and_assign_voices(ctx: GenerationContext) -> None:
+    """Apply phrase overrides and assign voices to phrases."""
+    overrides = ctx.config["overrides"]
+
+    for phrase in ctx.phrases:
         if phrase.id in overrides:
-            logger.debug(f"Phrase {phrase} is in ovverrides")
+            logger.debug(f"Phrase {phrase} is in overrides")
             phrase.fromOverrides(overrides.get(phrase.id))
-        phrase_voices = [default_voice]
+
+        phrase_voices = [ctx.default_voice]
+
         if "/" in phrase.id:
-            # if the ID is a path, treat it as filename
+            # If the ID is a path, treat it as filename
             phrase.filename = f"{phrase.id}.ogg"
-            phrase_voices = [default_voice]
+            phrase_voices = [ctx.default_voice]
         elif phrase.hasFlag(flag=EPhraseFlags.OLD_VOX):
-            phrase.filename = preexSound
+            phrase.filename = ctx.preex_sound
             for voice in ("fem", "mas"):
                 phrase.files[voice] = FileData()
                 phrase.files[voice].filename = phrase.filename
@@ -386,45 +441,44 @@ def generate(args: dict) -> None:
                     phrase.files[voice].size = phrase.override_size
                 else:
                     phrase.files[voice].size = -1
-            # add to soundsToKeep
-            continue
+            continue  # Skip voice assignment for OLD_VOX
         elif phrase.hasFlag(EPhraseFlags.SFX):
-            phrase.filename = nuvoxSound
-            phrase_voices = [sfx_voice]
+            phrase.filename = ctx.nuvox_sound
+            phrase_voices = [ctx.sfx_voice]
         else:
             # Regular phrase - use new-vox path template
-            phrase.filename = nuvoxSound
+            phrase.filename = ctx.nuvox_sound
+
         for voice in phrase_voices:
-            voice_assignments[voice.SEX].append(phrase)
+            ctx.voice_assignments[voice.SEX].append(phrase)
 
-    logger.info(f"Checking that {TEMP_DIR} exists")
-    if not os.path.exists(TEMP_DIR):
-        logger.info(f"{TEMP_DIR} not found, creating it")
-        os.makedirs(TEMP_DIR)
 
-    lexicon_path = os.path.join(TEMP_DIR, "VOXdict.lisp")
-    DumpLexiconScript("", list(lexicon.values()), lexicon_path)
-    logger.info(f"Wrote lexicon script to {lexicon_path}")
+def _setup_lexicon(ctx: GenerationContext) -> None:
+    """Write lexicon script for Festival TTS."""
+    ctx.lexicon_path = os.path.join(TEMP_DIR, "VOXdict.lisp")
+    DumpLexiconScript("", list(ctx.lexicon.values()), ctx.lexicon_path)
+    logger.info(f"Wrote lexicon script to {ctx.lexicon_path}")
 
-    sounds_to_keep: set[str] = set()
 
-    for voice in all_voices:
+def _generate_audio_files(ctx: GenerationContext) -> None:
+    """Generate audio files for all phrases."""
+    for voice in ctx.all_voices:
         logger.info(f"ID = {voice.ID}, assigned_sex = {voice.assigned_sex}")
-        for phrase in voice_assignments[voice.SEX]:
+        for phrase in ctx.voice_assignments[voice.SEX]:
             generate_for_word(
-                phrase, voice, sounds_to_keep, lexicon_path, args
+                phrase, voice, ctx.sounds_to_keep, ctx.lexicon_path, ctx.args
             )
             for fd in phrase.files.values():
-                sounds_to_keep.add(
+                ctx.sounds_to_keep.add(
                     os.path.abspath(os.path.join(DIST_DIR, fd.filename))
                 )
 
-    # Build sexes dict for code generation
-    sexes: dict[str, list[Phrase]] = {
-        "fem": [],
-        "mas": [],
-    }
-    for p in phrases:
+
+def _build_sexes_dict(ctx: GenerationContext) -> dict[str, list[Phrase]]:
+    """Build sexes dict for code generation."""
+    sexes: dict[str, list[Phrase]] = {"fem": [], "mas": []}
+
+    for p in ctx.phrases:
         if p.hasFlag(EPhraseFlags.NOT_VOX):
             continue
         for k in p.files.keys():
@@ -437,60 +491,124 @@ def generate(args: dict) -> None:
                 if k in sexes:
                     sexes[k].append(p)
 
-    # Generate DM code
+    return sexes
+
+
+def _generate_dm_code(
+    ctx: GenerationContext, sexes: dict[str, list[Phrase]]
+) -> None:
+    """Generate DM code files."""
     codegen_config = CodeGenConfig(
         template_dir=pathlib.Path("templates"),
         output_dir=pathlib.Path(DIST_DIR),
     )
-    generator = get_generator(station, codegen_config, use_templates=True)
-    vox_sounds_path = generator.write(phrases, sexes)
+    generator = get_generator(ctx.station, codegen_config, use_templates=True)
+    vox_sounds_path = generator.write(ctx.phrases, sexes)
     logger.info(f"Wrote DM code to {vox_sounds_path}")
-    sounds_to_keep.add(os.path.abspath(str(vox_sounds_path)))
+    ctx.sounds_to_keep.add(os.path.abspath(str(vox_sounds_path)))
 
-    # Generate vox_data.json
+
+def _write_vox_data(ctx: GenerationContext) -> None:
+    """Generate vox_data.json manifest."""
     if not os.path.exists(DATA_DIR):
         os.makedirs(DATA_DIR)
+
     vox_data_path = os.path.join(DATA_DIR, "vox_data.json")
     with open(vox_data_path, "w") as f:
         data = {
             "version": VOX_DATA_VERSION,
             "compiled": time.time(),
-            "voices": configured_voices,
+            "voices": ctx.configured_voices,
             "words": collections.OrderedDict(
-                {w.id: w.serialize() for w in phrases if "/" not in w.id}
+                {w.id: w.serialize() for w in ctx.phrases if "/" not in w.id}
             ),
         }
         json.dump(data, f, indent=2)
-    logger.info(f"Wrote vox_data.json to {vox_data_path}")
-    sounds_to_keep.add(os.path.abspath(vox_data_path))
 
-    # Write manifest of generated files
+    logger.info(f"Wrote vox_data.json to {vox_data_path}")
+    ctx.sounds_to_keep.add(os.path.abspath(vox_data_path))
+
+
+def _write_manifest(ctx: GenerationContext) -> None:
+    """Write manifest of generated files."""
     manifest_path = os.path.join(TEMP_DIR, "written.txt")
     with open(manifest_path, "w") as f:
-        for filename in sorted(sounds_to_keep):
+        for filename in sorted(ctx.sounds_to_keep):
             f.write(f"{filename}\n")
     logger.info(f"Wrote manifest to {manifest_path}")
 
-    # Check for orphan files
+
+def _handle_orphan_files(ctx: GenerationContext) -> None:
+    """Check for and optionally delete orphan files."""
     orphan_count = 0
+
     for root, _, files in os.walk(DIST_DIR, topdown=False):
         for name in files:
             filename = os.path.abspath(os.path.join(root, name))
-            if filename not in sounds_to_keep:
+            if filename not in ctx.sounds_to_keep:
                 orphan_count += 1
-                if args["delete_orphans"]:
+                if ctx.args["delete_orphans"]:
                     logger.warning(f"Removing {filename} (no longer defined)")
                     os.remove(filename)
                 else:
                     logger.info(f"Orphan: {filename}")
+
     if orphan_count > 0:
-        if args["delete_orphans"]:
+        if ctx.args["delete_orphans"]:
             logger.info(f"Removed {orphan_count} orphan file(s)")
         else:
             logger.info(
                 f"Found {orphan_count} orphan file(s). "
                 "Use --delete-orphans to remove them."
             )
+
+
+# =============================================================================
+# Main Entry Point
+# =============================================================================
+
+
+def generate(args: dict) -> None:
+    """
+    Main generation orchestrator.
+
+    This function coordinates the entire TTS generation pipeline:
+    1. Load and validate configuration
+    2. Set up voices
+    3. Parse phrases from wordlists
+    4. Apply overrides and assign voices
+    5. Generate audio files
+    6. Generate DM code
+    7. Write output manifests
+    8. Handle orphan files
+    """
+    ctx = GenerationContext(args=args)
+
+    logger.info("Started voice generation")
+    for _k, _v in args.items():
+        logger.debug(f"Using argument {_k}={_v}")
+
+    # Phase 1: Configuration
+    _load_and_validate_config(ctx)
+    _setup_voices(ctx)
+    _ensure_directories()
+
+    # Phase 2: Phrase parsing
+    _parse_phrases(ctx)
+    _apply_overrides_and_assign_voices(ctx)
+    _setup_lexicon(ctx)
+
+    # Phase 3: Audio generation
+    _generate_audio_files(ctx)
+
+    # Phase 4: Code generation and output
+    sexes = _build_sexes_dict(ctx)
+    _generate_dm_code(ctx, sexes)
+    _write_vox_data(ctx)
+    _write_manifest(ctx)
+
+    # Phase 5: Cleanup
+    _handle_orphan_files(ctx)
 
     logger.info("Generation complete")
 

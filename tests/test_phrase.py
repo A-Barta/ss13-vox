@@ -210,8 +210,12 @@ class TestPhrase:
         p.id = "test"
         p.filename = "sound/vox_{SEX}/{ID}.ogg"
 
-        assert p.getFinalFilename("fem", silent=True) == "sound/vox_fem/test.ogg"
-        assert p.getFinalFilename("mas", silent=True) == "sound/vox_mas/test.ogg"
+        assert (
+            p.getFinalFilename("fem", silent=True) == "sound/vox_fem/test.ogg"
+        )
+        assert (
+            p.getFinalFilename("mas", silent=True) == "sound/vox_mas/test.ogg"
+        )
 
     def test_get_final_filename_windows_reserved(self):
         """Test that Windows reserved names are handled."""

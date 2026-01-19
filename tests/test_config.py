@@ -47,7 +47,9 @@ class TestSoundPathConfig:
 
     def test_valid_config(self):
         """Test valid sound path configuration."""
-        config = SoundPathConfig(**{"old-vox": "sound/vox", "new-vox": "sound/vox_new"})
+        config = SoundPathConfig(
+            **{"old-vox": "sound/vox", "new-vox": "sound/vox_new"}
+        )
         assert config.old_vox == "sound/vox"
         assert config.new_vox == "sound/vox_new"
 
@@ -69,8 +71,12 @@ class TestStationPathsConfig:
         """Test valid paths configuration."""
         config = StationPathsConfig(
             vox_data="data/vox_data.json",
-            vox_sounds=VoxSoundsConfig(path="code/vox.dm", template="tg.jinja"),
-            sound=SoundPathConfig(**{"old-vox": "sound/old", "new-vox": "sound/new"}),
+            vox_sounds=VoxSoundsConfig(
+                path="code/vox.dm", template="tg.jinja"
+            ),
+            sound=SoundPathConfig(
+                **{"old-vox": "sound/old", "new-vox": "sound/new"}
+            ),
         )
         assert config.vox_data == "data/vox_data.json"
 
@@ -119,13 +125,21 @@ class TestVoxConfig:
         return {
             "vg": StationPathsConfig(
                 vox_data="data/vox_data.json",
-                vox_sounds=VoxSoundsConfig(path="code/vox.dm", template="vglist.jinja"),
-                sound=SoundPathConfig(**{"old-vox": "sound/vox", "new-vox": "sound/vox_new"}),
+                vox_sounds=VoxSoundsConfig(
+                    path="code/vox.dm", template="vglist.jinja"
+                ),
+                sound=SoundPathConfig(
+                    **{"old-vox": "sound/vox", "new-vox": "sound/vox_new"}
+                ),
             ),
             "tg": StationPathsConfig(
                 vox_data="data/vox_data.json",
-                vox_sounds=VoxSoundsConfig(path="code/vox.dm", template="tglist.jinja"),
-                sound=SoundPathConfig(**{"old-vox": "sound/vox", "new-vox": "sound/vox_new"}),
+                vox_sounds=VoxSoundsConfig(
+                    path="code/vox.dm", template="tglist.jinja"
+                ),
+                sound=SoundPathConfig(
+                    **{"old-vox": "sound/vox", "new-vox": "sound/vox_new"}
+                ),
             ),
         }
 
@@ -157,16 +171,26 @@ class TestVoxConfig:
     def test_max_wordlen_validation(self, valid_paths):
         """Test max-wordlen validation."""
         # Valid value
-        config = VoxConfig(**{"max-wordlen": 50}, phrasefiles=["test.txt"], paths=valid_paths)
+        config = VoxConfig(
+            **{"max-wordlen": 50}, phrasefiles=["test.txt"], paths=valid_paths
+        )
         assert config.max_wordlen == 50
 
         # Too small
         with pytest.raises(PydanticValidationError):
-            VoxConfig(**{"max-wordlen": 0}, phrasefiles=["test.txt"], paths=valid_paths)
+            VoxConfig(
+                **{"max-wordlen": 0},
+                phrasefiles=["test.txt"],
+                paths=valid_paths,
+            )
 
         # Too large
         with pytest.raises(PydanticValidationError):
-            VoxConfig(**{"max-wordlen": 101}, phrasefiles=["test.txt"], paths=valid_paths)
+            VoxConfig(
+                **{"max-wordlen": 101},
+                phrasefiles=["test.txt"],
+                paths=valid_paths,
+            )
 
     def test_default_voices(self, valid_paths):
         """Test default voice configuration."""

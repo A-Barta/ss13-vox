@@ -29,15 +29,35 @@ class TestPronunciation:
         """Test that valid DMU phonemes are accepted."""
         p = Pronunciation()
         # All these should be in VALID_PHONEMES
-        valid = ["aa", "ae", "ah", "b", "ch", "d", "er", "f", "g", "k", "l",
-                 "m", "n", "ng", "p", "r", "s", "t", "z", "pau"]
+        valid = [
+            "aa",
+            "ae",
+            "ah",
+            "b",
+            "ch",
+            "d",
+            "er",
+            "f",
+            "g",
+            "k",
+            "l",
+            "m",
+            "n",
+            "ng",
+            "p",
+            "r",
+            "s",
+            "t",
+            "z",
+            "pau",
+        ]
         for phoneme in valid:
             assert phoneme in p.VALID_PHONEMES
 
     def test_parse_simple_word(self):
         """Test parsing a simple word pronunciation."""
         p = Pronunciation()
-        p.parseWord('hello: noun "hh eh" \'l ow\'')
+        p.parseWord("hello: noun \"hh eh\" 'l ow'")
 
         assert p.name == "hello"
         assert p.type == "noun"
@@ -52,7 +72,7 @@ class TestPronunciation:
     def test_parse_verb(self):
         """Test parsing a verb pronunciation."""
         p = Pronunciation()
-        p.parseWord('running: verb "r ah" \'n ih ng\'')
+        p.parseWord("running: verb \"r ah\" 'n ih ng'")
 
         assert p.name == "running"
         assert p.type == "verb"
@@ -103,7 +123,7 @@ class TestPronunciation:
         """Test that stress levels are correctly parsed."""
         p = Pronunciation()
         # Double quotes = stressed (1), single quotes = unstressed (0)
-        p.parseWord('monument: noun "m aa" \'n y uw\' \'m ah n t\'')
+        p.parseWord("monument: noun \"m aa\" 'n y uw' 'm ah n t'")
 
         assert p.syllables[0][1] == 1  # stressed
         assert p.syllables[1][1] == 0  # unstressed

@@ -11,14 +11,12 @@ from ss13vox.codegen import (
     Proc,
     InitClassBuilder,
     CodeGenConfig,
-    DMCodeGenerator,
     VGCodeGenerator,
     TGCodeGenerator,
     PureCodeGenerator,
     get_generator,
 )
 from ss13vox.phrase import Phrase, FileData, EPhraseFlags
-from ss13vox.exceptions import ValidationError
 
 
 class TestProc:

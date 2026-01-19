@@ -110,7 +110,7 @@ class Pronunciation(object):
             for phoneme in match.group(2).split(" "):
                 if phoneme not in self.VALID_PHONEMES:
                     raise PronunciationError(
-                        f"Invalid phoneme '{phoneme}' in lexicon entry '{self.name}'"
+                        f"Invalid phoneme '{phoneme}' in entry '{self.name}'"
                     )
                 if self.phoneset in self.PHONE_CONVERSIONS:
                     phoneset = self.PHONE_CONVERSIONS[self.phoneset]

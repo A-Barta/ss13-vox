@@ -315,6 +315,7 @@ class TestVoiceRegistry:
 
     def test_register_custom_voice(self):
         """Test registering a custom voice."""
+
         class TestVoice(Voice):
             ID = "test-voice"
             SEX = EVoiceSex.MASCULINE
