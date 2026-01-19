@@ -2,7 +2,6 @@
 Command-line interface for SS13-VOX generation.
 """
 
-import sys
 import os
 import json
 import hashlib
@@ -28,6 +27,7 @@ from .voice import (
 from .pronunciation import DumpLexiconScript, ParseLexiconText
 from .phrase import EPhraseFlags, FileData, ParsePhraseListFrom, Phrase
 from .codegen import CodeGenConfig, get_generator
+from .exceptions import AudioGenerationError, ConfigError, ValidationError
 
 FORMAT = "%(levelname)s --- %(message)s"
 LOGLEVEL = logging.DEBUG
@@ -45,12 +45,10 @@ def loadYaml(filename):
             try:
                 parsed_yaml = safe_load(stream)
                 config = parsed_yaml
-            except YAMLError:
-                logger.error(f"Invalid config in {filename}")
-                sys.exit(15)
-    except OSError:
-        logger.error(f"File not found: {filename}")
-        sys.exit(10)
+            except YAMLError as e:
+                raise ConfigError(f"Invalid YAML in {filename}: {e}") from e
+    except OSError as e:
+        raise ConfigError(f"Cannot read config file {filename}: {e}") from e
     return config
 
 
@@ -76,12 +74,11 @@ def run_cmd(
         text=capture_output,
     )
     if result.returncode != 0:
-        logger.error(
-            f"Command failed with code {result.returncode}: {command}"
+        stderr_msg = f"\nstderr: {result.stderr}" if capture_output and result.stderr else ""
+        raise AudioGenerationError(
+            f"Command failed with code {result.returncode}: "
+            f"{' '.join(command)}{stderr_msg}"
         )
-        if capture_output and result.stderr:
-            logger.error(f"stderr: {result.stderr}")
-        sys.exit(1)
     return result
 
 
@@ -253,11 +250,10 @@ def generate_for_word(
     # Verify output files exist
     for command, expected_file in cmds:
         if not os.path.isfile(expected_file):
-            logger.error(
-                f"File '{expected_file}' doesn't exist, "
-                f"command '{command}' probably failed!"
+            raise AudioGenerationError(
+                f"Expected output file '{expected_file}' was not created. "
+                f"Command may have failed: {' '.join(command)}"
             )
-            sys.exit(1)
 
     # Save cache
     with open(cachefile, "w") as f:
@@ -296,11 +292,16 @@ def generate(args: dict) -> None:
 
     for sexID, voiceid in config["voices"].items():
         voice = VoiceRegistry.Get(voiceid)
-        assert sexID != ""
+        if not sexID:
+            raise ConfigError(f"Empty sex ID in voice config for '{voiceid}'")
         voice.assigned_sex = sexID
         if sexID in ("fem", "mas"):
             sex = EVoiceSex(sexID)
-            assert voice.SEX == sex
+            if voice.SEX != sex:
+                raise ConfigError(
+                    f"Voice '{voiceid}' has SEX={voice.SEX.value} but is "
+                    f"assigned to '{sexID}'"
+                )
             voices.append(voice)
         elif sexID == "default":
             pass
@@ -326,25 +327,25 @@ def generate(args: dict) -> None:
 
     phrases: list[Phrase] = []
     phrasesByID = {}
-    broked = False
     max_wordlen = config["max-wordlen"]
+    duplicates = []
     for filename in config["phrasefiles"]:
         for p in ParsePhraseListFrom(filename):
             p.wordlen = min(max_wordlen, p.wordlen)
             if p.id in phrasesByID:
                 duplicated = phrasesByID[p.id]
-                logger.info(
-                    f"Duplicate phrase with ID {p.id} "
-                    f"in file {p.deffile} on line {p.defline}! "
-                    f"First instance in file {duplicated.deffile} "
-                    f"on line {duplicated.defline}."
+                duplicates.append(
+                    f"Duplicate phrase '{p.id}' in {p.deffile}:{p.defline} "
+                    f"(first seen in {duplicated.deffile}:{duplicated.defline})"
                 )
-                broked = True
                 continue
             phrases += [p]
             phrasesByID[p.id] = p
-        if broked:
-            sys.exit(1)
+    if duplicates:
+        raise ValidationError(
+            f"Found {len(duplicates)} duplicate phrase(s):\n"
+            + "\n".join(f"  - {d}" for d in duplicates)
+        )
 
     phrases.sort(key=lambda x: x.id)
 

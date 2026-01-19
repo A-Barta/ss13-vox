@@ -13,6 +13,7 @@ from typing import Optional
 import jinja2
 
 from .phrase import EPhraseFlags, Phrase
+from .exceptions import ValidationError
 
 
 @dataclass
@@ -61,7 +62,8 @@ class InitClassBuilder:
         ):
             self._add_proc()
 
-        assert self._current_proc is not None
+        if self._current_proc is None:
+            raise ValidationError("Failed to create proc for instruction batching")
         self._current_proc.add_line(instruction, cost)
         self.instructions += cost
 

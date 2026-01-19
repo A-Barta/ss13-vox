@@ -1,7 +1,8 @@
 from typing import List, Dict, Tuple
 import re
-import sys
 from logging import getLogger
+
+from .exceptions import PronunciationError
 
 REGEX_SEARCH_STRINGS = re.compile(r'(\'|")(.*?)(?:\1)')
 
@@ -109,12 +110,9 @@ class Pronunciation(object):
             phonemes = []
             for phoneme in match.group(2).split(" "):
                 if phoneme not in self.VALID_PHONEMES:
-                    logger.error(
-                        'INVALID PHONEME "{0}" IN LEX ENTRY "{1}"'.format(
-                            phoneme, self.name
-                        )
+                    raise PronunciationError(
+                        f"Invalid phoneme '{phoneme}' in lexicon entry '{self.name}'"
                     )
-                    sys.exit(1)
                 if self.phoneset in self.PHONE_CONVERSIONS:
                     phoneset = self.PHONE_CONVERSIONS[self.phoneset]
                     if phoneme in phoneset:

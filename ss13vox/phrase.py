@@ -7,6 +7,8 @@ import string
 
 from logging import getLogger
 
+from .exceptions import ValidationError
+
 __ALL__ = ["EPhraseFlags", "Phrase", "ParsePhraseListFrom"]
 
 # https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
@@ -48,7 +50,10 @@ class FileData(object):
     def fromJSON(self, data: dict) -> None:
         self.size = int(data["format"]["size"])
         self.duration = float(data["format"]["duration"])
-        assert self.duration > 0.0
+        if self.duration <= 0.0:
+            raise ValidationError(
+                f"Invalid audio duration: {self.duration} (must be positive)"
+            )
 
     def serialize(self) -> dict:
         return {

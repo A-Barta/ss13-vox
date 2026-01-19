@@ -1,6 +1,8 @@
 from typing import List
 from enum import Enum
 
+from .exceptions import ValidationError
+
 
 # All available Festival voices:
 # 'rab_diphone'
@@ -110,10 +112,12 @@ class Voice(object):
         }
 
     def fast_serialize(self) -> str:
-        assert self.ID is not None
-        assert self.SEX.value is not None
-        # assert self.FESTIVAL_VOICE_ID is not None
-        assert self.PHONESET is not None
+        if self.ID is None:
+            raise ValidationError("Voice ID cannot be None")
+        if self.SEX is None or self.SEX.value is None:
+            raise ValidationError(f"Voice '{self.ID}' has invalid SEX value")
+        if self.PHONESET is None:
+            raise ValidationError(f"Voice '{self.ID}' has no PHONESET defined")
         return (
             self.ID
             + str(self.SEX.value)
