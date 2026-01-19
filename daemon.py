@@ -309,7 +309,7 @@ class VoxRESTService(WZService, JinjaMixin):
                     "error": True,
                     "source": "user",
                     "message": (
-                        f"Too few words. (your wordlen={phrase.wordlen}"
+                        f"Too few words. (your wordlen={p.wordlen}"
                         f", limits.nwords.min={limit})"
                     ),
                 }
@@ -322,7 +322,7 @@ class VoxRESTService(WZService, JinjaMixin):
                     "error": True,
                     "source": "user",
                     "message": (
-                        f"Too many words. (your wordlen={phrase.wordlen}"
+                        f"Too many words. (your wordlen={p.wordlen}"
                         f", limits.nwords.max={limit})"
                     ),
                 }
