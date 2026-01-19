@@ -1,7 +1,7 @@
-from typing import List, Dict, Tuple
 import re
-import sys
 from logging import getLogger
+
+from .exceptions import PronunciationError
 
 REGEX_SEARCH_STRINGS = re.compile(r'(\'|")(.*?)(?:\1)')
 
@@ -18,7 +18,7 @@ class Pronunciation(object):
 
     # Convert our CMU standard phonemes
     # to whatever the voice we're using needs.
-    PHONE_CONVERSIONS: Dict[str, Dict[str, str]] = {
+    PHONE_CONVERSIONS: dict[str, dict[str, str]] = {
         "mrpa": {
             "ae": "a",
             "ih": "i",
@@ -26,7 +26,7 @@ class Pronunciation(object):
     }
 
     #: DMU phonemes + pau
-    VALID_PHONEMES: List[str] = [
+    VALID_PHONEMES: list[str] = [
         "aa",
         "ae",
         "ah",
@@ -74,7 +74,7 @@ class Pronunciation(object):
         self.name: str = ""
         self.type: str = "n"
         # (list of phonemes, stress), ...
-        self.syllables: List[Tuple[List[str], int]] = []
+        self.syllables: list[tuple[list[str], int]] = []
 
     def toLisp(self):
         """
@@ -109,12 +109,9 @@ class Pronunciation(object):
             phonemes = []
             for phoneme in match.group(2).split(" "):
                 if phoneme not in self.VALID_PHONEMES:
-                    logger.error(
-                        'INVALID PHONEME "{0}" IN LEX ENTRY "{1}"'.format(
-                            phoneme, self.name
-                        )
+                    raise PronunciationError(
+                        f"Invalid phoneme '{phoneme}' in entry '{self.name}'"
                     )
-                    sys.exit(1)
                 if self.phoneset in self.PHONE_CONVERSIONS:
                     phoneset = self.PHONE_CONVERSIONS[self.phoneset]
                     if phoneme in phoneset:
@@ -127,7 +124,7 @@ class Pronunciation(object):
 
 
 def DumpLexiconScript(
-    voice: str, pronunciations: List[Pronunciation], filename: str
+    voice: str, pronunciations: list[Pronunciation], filename: str
 ) -> None:
     with open(filename, "w") as lisp:
         if voice != "":
@@ -138,7 +135,7 @@ def DumpLexiconScript(
 
 def ParseLexiconText(
     filename: str, phoneset: str = ""
-) -> Dict[str, Pronunciation]:
+) -> dict[str, Pronunciation]:
     pronunciations = {}
     with open(filename, "r") as lines:
         for line in lines:

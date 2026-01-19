@@ -8,11 +8,10 @@ including sound mappings, duration data, and word length information.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
 import jinja2
 
 from .phrase import EPhraseFlags, Phrase
+from .exceptions import ValidationError
 
 
 @dataclass
@@ -43,7 +42,7 @@ class InitClassBuilder:
     def __init__(self):
         self.instructions: int = 0
         self._proc_count: int = 0
-        self._current_proc: Optional[Proc] = None
+        self._current_proc: Proc | None = None
         self.procs: dict[str, Proc] = {}
 
     def _add_proc(self) -> Proc:
@@ -61,7 +60,10 @@ class InitClassBuilder:
         ):
             self._add_proc()
 
-        assert self._current_proc is not None
+        if self._current_proc is None:
+            raise ValidationError(
+                "Failed to create proc for instruction batching"
+            )
         self._current_proc.add_line(instruction, cost)
         self.instructions += cost
 
@@ -78,9 +80,9 @@ class CodeGenConfig:
 class DMCodeGenerator(ABC):
     """Abstract base class for DM code generators."""
 
-    def __init__(self, config: Optional[CodeGenConfig] = None):
+    def __init__(self, config: CodeGenConfig | None = None):
         self.config = config or CodeGenConfig()
-        self._env: Optional[jinja2.Environment] = None
+        self._env: jinja2.Environment | None = None
 
     @property
     def env(self) -> jinja2.Environment:
@@ -136,7 +138,7 @@ class VGCodeGenerator(DMCodeGenerator):
 
     def __init__(
         self,
-        config: Optional[CodeGenConfig] = None,
+        config: CodeGenConfig | None = None,
         output_filename: str = "code/defines/vox_sounds.dm",
     ):
         super().__init__(config)
@@ -178,7 +180,7 @@ class TGCodeGenerator(DMCodeGenerator):
 
     def __init__(
         self,
-        config: Optional[CodeGenConfig] = None,
+        config: CodeGenConfig | None = None,
         output_filename: str = DEFAULT_OUTPUT,
     ):
         super().__init__(config)
@@ -215,7 +217,7 @@ class PureCodeGenerator(DMCodeGenerator):
 
     def __init__(
         self,
-        config: Optional[CodeGenConfig] = None,
+        config: CodeGenConfig | None = None,
         output_filename: str = "code/defines/vox_sounds.dm",
         codebase: str = "vg",
     ):
@@ -356,7 +358,7 @@ class PureCodeGenerator(DMCodeGenerator):
 
 def get_generator(
     codebase: str,
-    config: Optional[CodeGenConfig] = None,
+    config: CodeGenConfig | None = None,
     use_templates: bool = True,
 ) -> DMCodeGenerator:
     """

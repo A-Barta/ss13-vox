@@ -14,6 +14,7 @@ name = "ss13-vox"
 dependencies = [
     "pyyaml",
     "jinja2",
+    "pydantic>=2.0",
 ]
 authors = [
   {name = "Antonio Bartalesi", email = "antonio.bartalesi@gmail.com"},
@@ -35,7 +36,38 @@ daemon = [
     "ruamel.yaml",
 ]
 test = [
-    "pytest",
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+markers = [
+    "integration: marks tests as integration tests (may require external tools)",
+    "slow: marks tests as slow running",
+]
+
+[tool.coverage.run]
+source = ["ss13vox"]
+branch = true
+omit = [
+    "ss13vox/otfclient.py",
+    "ss13vox/daemon/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
 ]
 
 [project.urls]

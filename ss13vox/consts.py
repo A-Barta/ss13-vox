@@ -1,3 +1,98 @@
+"""Constants for SS13-VOX audio processing.
+
+This module contains all magic numbers and configuration constants used
+throughout the audio generation pipeline.
+"""
+
+# =============================================================================
+# Audio Duration Constants
+# =============================================================================
+
+# SoX adds silence padding to the end of audio files. This constant represents
+# the duration of that padding in seconds, which must be subtracted from the
+# reported duration to get the actual speech duration.
+SILENCE_PADDING_DURATION = 10.0
+
+# =============================================================================
+# SoX Effect Parameters
+# =============================================================================
+
+# Chorus effect parameters - adds harmonics to make voice sound less monotone
+# See: https://sox.sourceforge.net/sox.html (chorus effect)
+SOX_CHORUS_GAIN_IN = "0.7"  # Input gain (0-1)
+SOX_CHORUS_GAIN_OUT = "0.9"  # Output gain (0-1)
+SOX_CHORUS_DELAY_MS = "55"  # Delay in milliseconds
+SOX_CHORUS_DECAY = "0.4"  # Decay factor
+SOX_CHORUS_SPEED = "0.25"  # Modulation speed in Hz
+SOX_CHORUS_DEPTH = "2"  # Modulation depth in ms
+SOX_CHORUS_SHAPE = "-t"  # Triangle wave modulation
+
+# Phaser effect parameters - adds digital/spacey quality
+# See: https://sox.sourceforge.net/sox.html (phaser effect)
+SOX_PHASER_GAIN_IN = "0.9"  # Input gain
+SOX_PHASER_GAIN_OUT = "0.85"  # Output gain
+SOX_PHASER_DELAY_MS = "4"  # Base delay in ms
+SOX_PHASER_DECAY = "0.23"  # Decay factor
+SOX_PHASER_SPEED = "1.3"  # Modulation speed in Hz
+SOX_PHASER_SHAPE = "-s"  # Sinusoidal modulation
+
+# Echo effect parameters - adds hallway/reverb quality
+# See: https://sox.sourceforge.net/sox.html (echos effect)
+SOX_ECHO_GAIN_IN = "0.3"  # Input gain
+SOX_ECHO_GAIN_OUT = "0.5"  # Output gain
+SOX_ECHO_DELAY_1_MS = "100"  # First echo delay in ms
+SOX_ECHO_DECAY_1 = "0.25"  # First echo decay
+SOX_ECHO_DELAY_2_MS = "10"  # Second echo delay in ms
+SOX_ECHO_DECAY_2 = "0.25"  # Second echo decay
+
+# Bass attenuation - reduces low frequencies for clearer speech
+# See: https://sox.sourceforge.net/sox.html (bass effect)
+SOX_BASS_GAIN_DB = "-40"  # Attenuation in dB (negative = reduce)
+
+# Highpass filter - removes rumble/hum below cutoff frequency
+# Applied twice for steeper rolloff
+# See: https://sox.sourceforge.net/sox.html (highpass effect)
+SOX_HIGHPASS_FREQ_HZ = "22"  # Cutoff frequency in Hz
+
+# Dynamic range compression (compand) - evens out volume levels
+# See: https://sox.sourceforge.net/sox.html (compand effect)
+# Format: attack,decay soft-knee-dB:out-dB ... gain initial-volume
+SOX_COMPAND_ATTACK_DECAY = "0.01,1"  # Attack 10ms, decay 1s
+SOX_COMPAND_TRANSFER = "-90,-90,-70,-70,-60,-20,0,0"  # Transfer function
+SOX_COMPAND_GAIN_DB = "-5"  # Output gain adjustment
+SOX_COMPAND_INITIAL_DB = "-20"  # Initial volume level
+
+# =============================================================================
+# Voice-Specific Parameters
+# =============================================================================
+
+# Pitch shift for masculine voices (in cents, 100 cents = 1 semitone)
+# Negative values lower the pitch
+VOICE_PITCH_SHIFT_MALE = "-200"  # Lower pitch by 2 semitones
+
+# Stretch factor - slows down and adds gravelly quality
+# Values > 1.0 slow down the audio
+VOICE_STRETCH_STANDARD = "1.1"  # Standard stretch for most voices
+
+# =============================================================================
+# Daemon Configuration
+# =============================================================================
+
+# Maximum number of phrases to cache per game server
+# Older phrases are evicted when this limit is reached (LRU)
+DAEMON_PHRASE_POOL_SIZE = 50
+
+# =============================================================================
+# Manifest Configuration
+# =============================================================================
+
+# Version number for vox_data.json manifest format
+VOX_DATA_VERSION = 2
+
+# =============================================================================
+# FFmpeg Recompression Arguments
+# =============================================================================
+
 # Direct from TG's PR (https://github.com/tgstation/tgstation/pull/36492)
 # May bump up quality and rate slightly...
 RECOMPRESS_ARGS = [

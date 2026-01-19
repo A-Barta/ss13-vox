@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Dict, Optional
 
 from ss13vox.daemon.gameserver import VOXGameServer
 
@@ -12,9 +11,9 @@ class DaemonConfig:
     def __init__(self) -> None:
         self.address: str = "127.0.0.1"
         self.port: int = 8080
-        self.baseurl: Optional[str] = None
+        self.baseurl: str | None = None
 
-        self.gameservers: Dict[str, VOXGameServer] = {}
+        self.gameservers: dict[str, VOXGameServer] = {}
 
         self.otf_dir: Path = Path(".otf")
         self.tmp_dir: Path = self.otf_dir / "tmp"
