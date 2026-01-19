@@ -1,4 +1,3 @@
-from typing import List, Optional, Dict
 from enum import IntFlag
 
 import re
@@ -93,21 +92,21 @@ class Phrase(object):
         # SFX phrases use this as the filename.
         self.phrase: str = ""
         #: Parsed representation of the phrase.  None in SFX.
-        self.parsed_phrase: Optional[List[str]] = None
+        self.parsed_phrase: list[str] | None = None
         #: Output filename.
         self.filename: str = ""
         #: Any comments before this line.
-        self.comments_before: List[str] = []
+        self.comments_before: list[str] = []
         self.flags: EPhraseFlags = EPhraseFlags.NONE
         # What voices we were built with
-        self.voices: List[str] = []
+        self.voices: list[str] = []
         #: Output filename.
-        self.files: Dict[str, FileData] = {}
+        self.files: dict[str, FileData] = {}
         #: Used for organize.py.
         self.category: str = ""
 
-        self.override_duration: Optional[float] = None
-        self.override_size: Optional[int] = None
+        self.override_duration: float | None = None
+        self.override_size: int | None = None
 
         #: File in which this phrase was defined.
         self.deffile: str = ""
@@ -200,7 +199,7 @@ class Phrase(object):
         self.override_size = data.get("size")
 
 
-def ParsePhraseListFrom(filename: str) -> List[Phrase]:
+def ParsePhraseListFrom(filename: str) -> list[Phrase]:
     phrases = []
     comments_before = []
     in_cat = ""

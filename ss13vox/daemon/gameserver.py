@@ -3,8 +3,6 @@ import random
 import string
 import uuid
 from pathlib import Path
-from typing import Dict, Optional
-
 from ss13vox.daemon.phraseref import PhraseRef
 from ss13vox.phrase import Phrase
 
@@ -16,7 +14,7 @@ class VOXGameServer:
         self.session_key: str = ""
         self.basepath: Path = None
         self.baseurl: str = None
-        self.phrases: Dict[str, PhraseRef] = {}
+        self.phrases: dict[str, PhraseRef] = {}
         self.phrase_pool: collections.deque[str] = collections.deque()
 
     def loadFrom(self, config: dict) -> None:
@@ -53,7 +51,7 @@ class VOXGameServer:
 
         return pr
 
-    def getPhrase(self, voice: str, phrase: str) -> Optional[PhraseRef]:
+    def getPhrase(self, voice: str, phrase: str) -> PhraseRef | None:
         pk: str = voice + phrase
         if pk in self.phrases:
             return self.phrases[pk]

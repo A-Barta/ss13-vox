@@ -1,4 +1,3 @@
-from typing import List, Dict, Tuple
 import re
 from logging import getLogger
 
@@ -19,7 +18,7 @@ class Pronunciation(object):
 
     # Convert our CMU standard phonemes
     # to whatever the voice we're using needs.
-    PHONE_CONVERSIONS: Dict[str, Dict[str, str]] = {
+    PHONE_CONVERSIONS: dict[str, dict[str, str]] = {
         "mrpa": {
             "ae": "a",
             "ih": "i",
@@ -27,7 +26,7 @@ class Pronunciation(object):
     }
 
     #: DMU phonemes + pau
-    VALID_PHONEMES: List[str] = [
+    VALID_PHONEMES: list[str] = [
         "aa",
         "ae",
         "ah",
@@ -75,7 +74,7 @@ class Pronunciation(object):
         self.name: str = ""
         self.type: str = "n"
         # (list of phonemes, stress), ...
-        self.syllables: List[Tuple[List[str], int]] = []
+        self.syllables: list[tuple[list[str], int]] = []
 
     def toLisp(self):
         """
@@ -125,7 +124,7 @@ class Pronunciation(object):
 
 
 def DumpLexiconScript(
-    voice: str, pronunciations: List[Pronunciation], filename: str
+    voice: str, pronunciations: list[Pronunciation], filename: str
 ) -> None:
     with open(filename, "w") as lisp:
         if voice != "":
@@ -136,7 +135,7 @@ def DumpLexiconScript(
 
 def ParseLexiconText(
     filename: str, phoneset: str = ""
-) -> Dict[str, Pronunciation]:
+) -> dict[str, Pronunciation]:
     pronunciations = {}
     with open(filename, "r") as lines:
         for line in lines:

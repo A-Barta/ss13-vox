@@ -13,7 +13,7 @@ import multiprocessing
 import time
 import collections
 
-from .consts import PRE_SOX_ARGS, RECOMPRESS_ARGS
+from .consts import PRE_SOX_ARGS, RECOMPRESS_ARGS, SILENCE_PADDING_DURATION
 from .config import load_config, config_to_dict
 from .voice import (
     EVoiceSex,
@@ -59,7 +59,11 @@ def run_cmd(
         text=capture_output,
     )
     if result.returncode != 0:
-        stderr_msg = f"\nstderr: {result.stderr}" if capture_output and result.stderr else ""
+        stderr_msg = (
+            f"\nstderr: {result.stderr}"
+            if capture_output and result.stderr
+            else ""
+        )
         raise AudioGenerationError(
             f"Command failed with code {result.returncode}: "
             f"{' '.join(command)}{stderr_msg}"
@@ -228,9 +232,12 @@ def generate_for_word(
     fdata.fromJSON(json.loads(result.stdout))
     fdata.checksum = md5sum(oggfile)
 
-    # Adjust duration for non-SFX (removes silence padding)
-    if not phrase.hasFlag(EPhraseFlags.SFX) and fdata.duration > 10.0:
-        fdata.duration -= 10.0
+    # Adjust duration for non-SFX (removes silence padding added by SoX)
+    if (
+        not phrase.hasFlag(EPhraseFlags.SFX)
+        and fdata.duration > SILENCE_PADDING_DURATION
+    ):
+        fdata.duration -= SILENCE_PADDING_DURATION
 
     # Verify output files exist
     for command, expected_file in cmds:

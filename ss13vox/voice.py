@@ -1,7 +1,27 @@
-from typing import List
 from enum import Enum
 
 from .exceptions import ValidationError
+from .consts import (
+    SOX_CHORUS_GAIN_IN,
+    SOX_CHORUS_GAIN_OUT,
+    SOX_CHORUS_DELAY_MS,
+    SOX_CHORUS_DECAY,
+    SOX_CHORUS_SPEED,
+    SOX_CHORUS_DEPTH,
+    SOX_CHORUS_SHAPE,
+    SOX_PHASER_GAIN_IN,
+    SOX_PHASER_GAIN_OUT,
+    SOX_PHASER_DELAY_MS,
+    SOX_PHASER_DECAY,
+    SOX_PHASER_SPEED,
+    SOX_PHASER_SHAPE,
+    SOX_ECHO_GAIN_IN,
+    SOX_ECHO_GAIN_OUT,
+    SOX_ECHO_DELAY_1_MS,
+    SOX_ECHO_DECAY_1,
+    SOX_ECHO_DELAY_2_MS,
+    SOX_ECHO_DECAY_2,
+)
 
 
 # All available Festival voices:
@@ -40,11 +60,12 @@ class Voice(object):
         self.chorus: bool = True
         self.phaser: bool = True
 
-    def genSoxArgs(self, args) -> List[str]:
+    def genSoxArgs(self, args) -> list[str]:
         """
         Generates arguments fed to SoX's command line.
 
         See the SoX(1) manpage for more information.
+        Constants are defined in ss13vox/consts.py for easy tuning.
         """
         # Standard SOX transformations used on all voices:
         sox_args = []
@@ -54,25 +75,25 @@ class Voice(object):
                 # people are talking at once. It also removes some of the
                 # monotone, and makes the voice sound more "natural".
                 "chorus",
-                "0.7",
-                "0.9",
-                "55",
-                "0.4",
-                "0.25",
-                "2",
-                "-t",
+                SOX_CHORUS_GAIN_IN,
+                SOX_CHORUS_GAIN_OUT,
+                SOX_CHORUS_DELAY_MS,
+                SOX_CHORUS_DECAY,
+                SOX_CHORUS_SPEED,
+                SOX_CHORUS_DEPTH,
+                SOX_CHORUS_SHAPE,
             ]
         if self.phaser:
             sox_args += [
                 # Phaser distorts the sound a bit,
                 # making it sound more "digital" and "spacey"
                 "phaser",
-                "0.9",
-                "0.85",
-                "4",
-                "0.23",
-                "1.3",
-                "-s",
+                SOX_PHASER_GAIN_IN,
+                SOX_PHASER_GAIN_OUT,
+                SOX_PHASER_DELAY_MS,
+                SOX_PHASER_DECAY,
+                SOX_PHASER_SPEED,
+                SOX_PHASER_SHAPE,
             ]
         sox_args += [
             # Attenuate bass
@@ -92,12 +113,12 @@ class Voice(object):
             # Add some fake hallway echos
             # Good with stretch, otherwise sounds like bees.
             "echos",
-            "0.3",
-            "0.5",
-            "100",
-            "0.25",
-            "10",
-            "0.25",
+            SOX_ECHO_GAIN_IN,
+            SOX_ECHO_GAIN_OUT,
+            SOX_ECHO_DELAY_1_MS,
+            SOX_ECHO_DECAY_1,
+            SOX_ECHO_DELAY_2_MS,
+            SOX_ECHO_DECAY_2,
             # Normalize volume
             "norm",
         ]
@@ -148,7 +169,7 @@ class USRMSMale(Voice):
     SEX = EVoiceSex.MASCULINE
     FESTIVAL_VOICE_ID = "nitech_us_rms_arctic_hts"
 
-    def genSoxArgs(self, args) -> List[str]:
+    def genSoxArgs(self, args) -> list[str]:
         sox_args = [
             # Drop pitch a bit.
             "pitch",
@@ -178,7 +199,7 @@ class ScotAWBMale(Voice):
     SEX = EVoiceSex.MASCULINE
     FESTIVAL_VOICE_ID = "nitech_us_awb_arctic_hts"
 
-    def genSoxArgs(self, args) -> List[str]:
+    def genSoxArgs(self, args) -> list[str]:
         sox_args = [
             # Drop pitch a bit.
             # 'pitch', '-200',
@@ -205,7 +226,7 @@ class RabDiphoneMale(Voice):
     ID = 'rab-diphone'
     SEX = EVoiceSex.MASCULINE
     FESTIVAL_VOICE_ID = 'rab_diphone'
-    def genSoxArgs(self, args) -> List[str]:
+    def genSoxArgs(self, args) -> list[str]:
         sox_args = [
             # Drop pitch a bit.
             # 'pitch', '-200',
@@ -236,7 +257,7 @@ class USSLTFemale(Voice):
     SEX = EVoiceSex.FEMININE
     FESTIVAL_VOICE_ID = "nitech_us_slt_arctic_hts"
 
-    def genSoxArgs(self, args) -> List[str]:
+    def genSoxArgs(self, args) -> list[str]:
         sox_args = [
             # Starts the gravelly sound, lowers pitch a bit.
             "stretch",
@@ -258,7 +279,7 @@ class USCLBFemale(Voice):
     SEX = EVoiceSex.FEMININE
     FESTIVAL_VOICE_ID = "nitech_us_clb_arctic_hts"
 
-    def genSoxArgs(self, args) -> List[str]:
+    def genSoxArgs(self, args) -> list[str]:
         sox_args = [
             # Starts the gravelly sound, lowers pitch a bit.
             "stretch",
@@ -284,7 +305,7 @@ class SFXVoice(Voice):
         self.assigned_sex = "sfx"
         self.chorus = self.phaser = False
 
-    def genSoxArgs(self, args) -> List[str]:
+    def genSoxArgs(self, args) -> list[str]:
         # Just echos and DRC
         return super().genSoxArgs(args)
 

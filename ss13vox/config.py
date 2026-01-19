@@ -24,7 +24,9 @@ class VoiceConfig(BaseModel):
     @classmethod
     def voice_must_be_string(cls, v: Any) -> str:
         if not isinstance(v, str):
-            raise ValueError(f"Voice ID must be a string, got {type(v).__name__}")
+            raise ValueError(
+                f"Voice ID must be a string, got {type(v).__name__}"
+            )
         if not v:
             raise ValueError("Voice ID cannot be empty")
         return v
@@ -70,7 +72,14 @@ class PhraseOverride(BaseModel):
             return []
         if not isinstance(v, list):
             raise ValueError(f"flags must be a list, got {type(v).__name__}")
-        valid_flags = {"old-vox", "no-process", "no-trim", "sfx", "sing", "not-vox"}
+        valid_flags = {
+            "old-vox",
+            "no-process",
+            "no-trim",
+            "sfx",
+            "sing",
+            "not-vox",
+        }
         for flag in v:
             if flag not in valid_flags:
                 raise ValueError(
@@ -111,7 +120,9 @@ class VoxConfig(BaseModel):
     @classmethod
     def validate_phrasefiles(cls, v: list[str]) -> list[str]:
         if not v:
-            raise ValueError("phrasefiles cannot be empty - at least one wordlist required")
+            raise ValueError(
+                "phrasefiles cannot be empty - at least one wordlist required"
+            )
         for path in v:
             if not path:
                 raise ValueError("phrasefile path cannot be empty")
@@ -120,7 +131,9 @@ class VoxConfig(BaseModel):
     @model_validator(mode="after")
     def validate_paths_for_codebase(self) -> "VoxConfig":
         if self.codebase not in self.paths:
-            available = ", ".join(sorted(self.paths.keys())) if self.paths else "none"
+            available = (
+                ", ".join(sorted(self.paths.keys())) if self.paths else "none"
+            )
             raise ValueError(
                 f"codebase '{self.codebase}' not found in paths. "
                 f"Available: {available}"
@@ -133,15 +146,21 @@ class VoxConfig(BaseModel):
         if v is None:
             return {}
         if not isinstance(v, dict):
-            raise ValueError(f"overrides must be a dict, got {type(v).__name__}")
+            raise ValueError(
+                f"overrides must be a dict, got {type(v).__name__}"
+            )
         result = {}
         for phrase_id, override_data in v.items():
             if override_data is None:
                 continue
             try:
-                result[phrase_id] = PhraseOverride.model_validate(override_data)
+                result[phrase_id] = PhraseOverride.model_validate(
+                    override_data
+                )
             except Exception as e:
-                raise ValueError(f"Invalid override for phrase '{phrase_id}': {e}") from e
+                raise ValueError(
+                    f"Invalid override for phrase '{phrase_id}': {e}"
+                ) from e
         return result
 
 
@@ -206,8 +225,16 @@ def config_to_dict(config: VoxConfig, station: str) -> dict[str, Any]:
         "overrides": {
             phrase_id: {
                 "flags": override.flags,
-                **({"duration": override.duration} if override.duration is not None else {}),
-                **({"word-count": override.word_count} if override.word_count is not None else {}),
+                **(
+                    {"duration": override.duration}
+                    if override.duration is not None
+                    else {}
+                ),
+                **(
+                    {"word-count": override.word_count}
+                    if override.word_count is not None
+                    else {}
+                ),
             }
             for phrase_id, override in config.overrides.items()
         },

@@ -5,8 +5,6 @@ import logging
 import collections
 import subprocess
 from pathlib import Path
-from typing import Dict, List
-
 from .phrase import Phrase, EPhraseFlags, ParsePhraseListFrom
 
 logger = logging.getLogger(__name__)
@@ -44,8 +42,8 @@ def organize_file(filename: str, sort_sections: bool = False) -> str:
     Returns:
         Path to the output file (filename + ".sorted")
     """
-    phrases: Dict[str, List[Phrase]] = collections.OrderedDict()
-    phrases_by_id: Dict[str, Phrase] = {}
+    phrases: dict[str, list[Phrase]] = collections.OrderedDict()
+    phrases_by_id: dict[str, Phrase] = {}
 
     for p in ParsePhraseListFrom(filename):
         if p.id.lower() in phrases_by_id:
@@ -150,7 +148,7 @@ def generate_speech_from_file(
     tmp_path.mkdir(parents=True, exist_ok=True)
 
     # Generate audio for each line
-    clips: List[Path] = []
+    clips: list[Path] = []
     with open(input_file, "r") as f:
         for line in f:
             text = line.strip()
