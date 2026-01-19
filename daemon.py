@@ -28,6 +28,37 @@ from ss13vox.daemon.gameserver import VOXGameServer
 from ss13vox.daemon.phraseref import PhraseRef
 from ss13vox.sanitize import sanitize_tts_input, SanitizationError
 
+
+def check_limit(
+    value: int,
+    limit: int,
+    comparison: str,
+    error_template: str,
+) -> dict | None:
+    """Check a value against a limit and return error dict if violated.
+
+    Args:
+        value: The value to check
+        limit: The limit to check against
+        comparison: Either "min" or "max"
+        error_template: Error message template with {value} and {limit}
+            placeholders
+
+    Returns:
+        Error dict if limit violated, None otherwise
+    """
+    violated = (comparison == "min" and value < limit) or (
+        comparison == "max" and value > limit
+    )
+    if violated:
+        return {
+            "error": True,
+            "source": "user",
+            "message": error_template.format(value=value, limit=limit),
+        }
+    return None
+
+
 os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
     filename="logs/daemon.log",
@@ -290,79 +321,63 @@ class VoxRESTService(WZService, JinjaMixin):
                 }
             )
 
+        # Validate phrase length limits
         phraselen = len(phrase)
-        limit = self.config["limits"]["phraselen"]["min"]
-        if phraselen < limit:
-            return self.jsonify(
-                {
-                    "error": True,
-                    "source": "user",
-                    "message": (
-                        f"Too few characters. (your phraselen={phraselen}"
-                        f", limits.phraselen.min={limit})"
-                    ),
-                }
-            )
+        limits = self.config["limits"]
 
-        limit = self.config["limits"]["phraselen"]["max"]
-        if phraselen > limit:
-            return self.jsonify(
-                {
-                    "error": True,
-                    "source": "user",
-                    "message": (
-                        f"Too many characters. (your phraselen={phraselen}"
-                        f", limits.phraselen.max={limit})"
-                    ),
-                }
-            )
+        error = check_limit(
+            phraselen,
+            limits["phraselen"]["min"],
+            "min",
+            "Too few characters. (phraselen={value}, min={limit})",
+        )
+        if error:
+            return self.jsonify(error)
 
+        error = check_limit(
+            phraselen,
+            limits["phraselen"]["max"],
+            "max",
+            "Too many characters. (phraselen={value}, max={limit})",
+        )
+        if error:
+            return self.jsonify(error)
+
+        # Parse phrase and validate word count limits
         p = Phrase()
         p.phrase = phrase
         p.parsed_phrase = phrase.split(" ")
         p.wordlen = len(p.parsed_phrase)
-        limit = self.config["limits"]["nwords"]["min"]
-        if p.wordlen < limit:
-            return self.jsonify(
-                {
-                    "error": True,
-                    "source": "user",
-                    "message": (
-                        f"Too few words. (your wordlen={p.wordlen}"
-                        f", limits.nwords.min={limit})"
-                    ),
-                }
-            )
 
-        limit = self.config["limits"]["nwords"]["max"]
-        if p.wordlen > limit:
-            return self.jsonify(
-                {
-                    "error": True,
-                    "source": "user",
-                    "message": (
-                        f"Too many words. (your wordlen={p.wordlen}"
-                        f", limits.nwords.max={limit})"
-                    ),
-                }
-            )
+        error = check_limit(
+            p.wordlen,
+            limits["nwords"]["min"],
+            "min",
+            "Too few words. (wordlen={value}, min={limit})",
+        )
+        if error:
+            return self.jsonify(error)
 
-        wordlens = [len(w) for w in p.parsed_phrase]
-        maxwordlen = max(wordlens)
+        error = check_limit(
+            p.wordlen,
+            limits["nwords"]["max"],
+            "max",
+            "Too many words. (wordlen={value}, max={limit})",
+        )
+        if error:
+            return self.jsonify(error)
 
-        limit = self.config["limits"]["wordlen"]["max"]
-        if maxwordlen > limit:
-            return self.jsonify(
-                {
-                    "error": True,
-                    "source": "user",
-                    "message": (
-                        "A word was too big. "
-                        f"(max(len(word), ...)={maxwordlen}"
-                        f", limits.wordlen.max={limit})"
-                    ),
-                }
-            )
+        # Validate individual word length
+        maxwordlen = max(len(w) for w in p.parsed_phrase)
+
+        error = check_limit(
+            maxwordlen,
+            limits["wordlen"]["max"],
+            "max",
+            "A word was too big. (max_word_len={value}, max={limit})",
+        )
+        if error:
+            return self.jsonify(error)
 
         # Use lock to prevent race condition where two requests for the same
         # phrase both see cache miss and try to generate simultaneously
