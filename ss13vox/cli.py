@@ -184,9 +184,11 @@ def generate_for_word(
     cmds = []
     cmds.append((text2wave, f"{TEMP_DIR}/VOX-word.wav"))
 
-    if not phrase.hasFlag(EPhraseFlags.NO_PROCESS) or not phrase.hasFlag(
+    # Only skip SoX pre-processing if BOTH flags are set
+    skip_sox_pre = phrase.hasFlag(EPhraseFlags.NO_PROCESS) and phrase.hasFlag(
         EPhraseFlags.NO_TRIM
-    ):
+    )
+    if not skip_sox_pre:
         cmds.append(
             (
                 [
@@ -288,7 +290,6 @@ def generate(args: dict) -> None:
     voice_assignments = {}
     all_voices = []
     default_voice: Voice = VoiceRegistry.Get(USSLTFemale.ID)
-    default_voice.assigned_sex
     # This should default to config['voices']['default']
     sfx_voice: SFXVoice = SFXVoice()
     configured_voices: dict[str, dict] = {}
