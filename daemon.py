@@ -3,6 +3,7 @@ import json
 import hashlib
 import shutil
 import argparse
+import threading
 from pathlib import Path
 from typing import Dict, Any
 
@@ -27,8 +28,7 @@ from ss13vox.daemon.gameserver import VOXGameServer
 from ss13vox.daemon.phraseref import PhraseRef
 from ss13vox.sanitize import sanitize_tts_input, SanitizationError
 
-if not os.path.isdir("logs"):
-    os.makedirs("logs")
+os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
     filename="logs/daemon.log",
     filemode="w",
@@ -104,6 +104,9 @@ class VoxRESTService(WZService, JinjaMixin):
         self.config: Dict[str, Any] = config
 
         self.gameservers: Dict[str, VOXGameServer] = {}
+
+        # Lock for thread-safe phrase cache access
+        self._phrase_lock = threading.Lock()
 
         self.setupJinja(Path.cwd() / "templates")
         # self.jinja_env.filters["hostname"] = get_hostname
@@ -361,12 +364,15 @@ class VoxRESTService(WZService, JinjaMixin):
                 }
             )
 
-        pr: PhraseRef = self.gameservers[srvid].getPhrase(voice, phrase)
-        if pr is None:
-            pr = gss.addPhrase(voice, p)
-            self.runtime.createSoundFromPhrase(
-                p, self.runtime.getVoiceByGCode(voice), str(pr.path)
-            )
+        # Use lock to prevent race condition where two requests for the same
+        # phrase both see cache miss and try to generate simultaneously
+        with self._phrase_lock:
+            pr: PhraseRef = self.gameservers[srvid].getPhrase(voice, phrase)
+            if pr is None:
+                pr = gss.addPhrase(voice, p)
+                self.runtime.createSoundFromPhrase(
+                    p, self.runtime.getVoiceByGCode(voice), str(pr.path)
+                )
 
         return self.jsonify(
             {
