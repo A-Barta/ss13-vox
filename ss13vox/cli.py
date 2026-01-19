@@ -456,17 +456,26 @@ def generate(args: dict) -> None:
             f.write(f"{filename}\n")
     logger.info(f"Wrote manifest to {manifest_path}")
 
-    # Clean up orphan files
+    # Check for orphan files
     orphan_count = 0
     for root, _, files in os.walk(DIST_DIR, topdown=False):
         for name in files:
             filename = os.path.abspath(os.path.join(root, name))
             if filename not in sounds_to_keep:
-                logger.warning(f"Removing {filename} (no longer defined)")
-                os.remove(filename)
                 orphan_count += 1
+                if args["delete_orphans"]:
+                    logger.warning(f"Removing {filename} (no longer defined)")
+                    os.remove(filename)
+                else:
+                    logger.info(f"Orphan: {filename}")
     if orphan_count > 0:
-        logger.info(f"Removed {orphan_count} orphan file(s)")
+        if args["delete_orphans"]:
+            logger.info(f"Removed {orphan_count} orphan file(s)")
+        else:
+            logger.info(
+                f"Found {orphan_count} orphan file(s). "
+                "Use --delete-orphans to remove them."
+            )
 
     logger.info("Generation complete")
 
@@ -503,6 +512,12 @@ def parse_args() -> dict:
         type=str,
         default="vox_config.yaml",
         help="The configuration file to use, defaults to 'vox_config.yaml",
+    )
+    parser.add_argument(
+        "--delete-orphans",
+        action="store_true",
+        default=False,
+        help="Delete orphan files that are no longer defined in wordlists.",
     )
     return vars(parser.parse_args())
 
