@@ -14,6 +14,7 @@ name = "ss13-vox"
 dependencies = [
     "pyyaml",
     "jinja2",
+    "pydantic>=2.0",
 ]
 authors = [
   {name = "Antonio Bartalesi", email = "antonio.bartalesi@gmail.com"},

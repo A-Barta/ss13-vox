@@ -13,10 +13,8 @@ import multiprocessing
 import time
 import collections
 
-from yaml import safe_load
-from yaml import YAMLError
-
 from .consts import PRE_SOX_ARGS, RECOMPRESS_ARGS
+from .config import load_config, config_to_dict
 from .voice import (
     EVoiceSex,
     SFXVoice,
@@ -37,19 +35,6 @@ DIST_DIR = "dist"
 DATA_DIR = os.path.join(DIST_DIR, "data")
 
 logger = logging.getLogger("ss13vox")
-
-
-def loadYaml(filename):
-    try:
-        with open(filename) as stream:
-            try:
-                parsed_yaml = safe_load(stream)
-                config = parsed_yaml
-            except YAMLError as e:
-                raise ConfigError(f"Invalid YAML in {filename}: {e}") from e
-    except OSError as e:
-        raise ConfigError(f"Cannot read config file {filename}: {e}") from e
-    return config
 
 
 def md5sum(filename: str) -> str:
@@ -275,11 +260,27 @@ def generate(args: dict) -> None:
         f"  voices = {voices}\n"
     )
 
-    # get config
-    config = loadYaml(args["config"])
+    # Load and validate config
+    station = args["station"]
+    validated_config = load_config(args["config"])
+
+    # Override codebase if --station is specified and different
+    if station != validated_config.codebase:
+        logger.info(
+            f"Using station '{station}' (config default: '{validated_config.codebase}')"
+        )
+
+    # Validate that the requested station exists in paths
+    if station not in validated_config.paths:
+        available = ", ".join(sorted(validated_config.paths.keys()))
+        raise ConfigError(
+            f"Station '{station}' not found in config paths. Available: {available}"
+        )
+
+    # Convert to dict format for backward compatibility
+    config = config_to_dict(validated_config, station)
 
     # configure
-    station = args["station"]
     preexSound = config["paths"][station]["sound"]["old-vox"]
     nuvoxSound = config["paths"][station]["sound"]["new-vox"]
 
