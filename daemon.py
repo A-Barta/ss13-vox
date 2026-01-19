@@ -25,6 +25,7 @@ from ss13vox.phrase import Phrase
 from ss13vox.utils import generate_preshared_key
 from ss13vox.daemon.gameserver import VOXGameServer
 from ss13vox.daemon.phraseref import PhraseRef
+from ss13vox.sanitize import sanitize_tts_input, SanitizationError
 
 if not os.path.isdir("logs"):
     os.makedirs("logs")
@@ -268,6 +269,21 @@ class VoxRESTService(WZService, JinjaMixin):
                     "error": True,
                     "source": "user",
                     "message": "Incorrect voice.",
+                }
+            )
+
+        # Sanitize input to prevent LISP injection in Festival TTS
+        try:
+            phrase = sanitize_tts_input(
+                phrase,
+                max_length=self.config["limits"]["phraselen"]["max"],
+            )
+        except SanitizationError as e:
+            return self.jsonify(
+                {
+                    "error": True,
+                    "source": "user",
+                    "message": f"Invalid phrase: {e}",
                 }
             )
 
